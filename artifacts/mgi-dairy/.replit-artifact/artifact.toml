@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "MGI Dairy"
+version = "1.0.0"
+id = "artifacts/mgi-dairy"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 20344
+
+[services.development]
+run = "pnpm --filter @workspace/mgi-dairy run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mgi-dairy", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/mgi-dairy", "run", "serve" ]
+
+[services.env]
+PORT = "20344"
+BASE_PATH = "/"
