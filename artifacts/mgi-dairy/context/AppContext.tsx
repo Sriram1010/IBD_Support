@@ -23,6 +23,15 @@ export interface SleepLog {
   notes: string;
 }
 
+export interface ExerciseLog {
+  id: string;
+  date: string;
+  running: number;
+  walking: number;
+  strengthTraining: number;
+  cardio: number;
+}
+
 export interface TriggerEntry {
   id: string;
   date: string;
@@ -47,6 +56,7 @@ interface AppContextType {
   meals: MealEntry[];
   waterEntries: WaterEntry[];
   sleepLogs: SleepLog[];
+  exerciseLogs: ExerciseLog[];
   triggers: TriggerEntry[];
   symptomLogs: SymptomLog[];
   addMeal: (meal: Omit<MealEntry, "id">) => Promise<void>;
@@ -54,12 +64,14 @@ interface AppContextType {
   addWaterEntry: (entry: Omit<WaterEntry, "id">) => Promise<void>;
   addSleepLog: (log: Omit<SleepLog, "id">) => Promise<void>;
   updateSleepLog: (id: string, log: Partial<SleepLog>) => Promise<void>;
+  saveExerciseLog: (log: Omit<ExerciseLog, "id">) => Promise<void>;
   addTrigger: (trigger: Omit<TriggerEntry, "id">) => Promise<void>;
   deleteTrigger: (id: string) => Promise<void>;
   addSymptomLog: (log: Omit<SymptomLog, "id">) => Promise<void>;
   updateSymptomLog: (id: string, log: Partial<SymptomLog>) => Promise<void>;
   getTodayWaterTotal: (date: string) => number;
   getTodaySleep: (date: string) => SleepLog | undefined;
+  getTodayExercise: (date: string) => ExerciseLog | undefined;
   isLoading: boolean;
 }
 
@@ -67,6 +79,7 @@ const STORAGE_KEYS = {
   MEALS: "mgi_meals",
   WATER: "mgi_water",
   SLEEP: "mgi_sleep",
+  EXERCISE: "mgi_exercise",
   TRIGGERS: "mgi_triggers",
   SYMPTOMS: "mgi_symptoms",
 };
@@ -95,22 +108,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [waterEntries, setWaterEntries] = useState<WaterEntry[]>([]);
   const [sleepLogs, setSleepLogs] = useState<SleepLog[]>([]);
+  const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
   const [triggers, setTriggers] = useState<TriggerEntry[]>([]);
   const [symptomLogs, setSymptomLogs] = useState<SymptomLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const init = async () => {
-      const [m, w, s, t, sym] = await Promise.all([
+      const [m, w, s, ex, t, sym] = await Promise.all([
         loadData<MealEntry>(STORAGE_KEYS.MEALS),
         loadData<WaterEntry>(STORAGE_KEYS.WATER),
         loadData<SleepLog>(STORAGE_KEYS.SLEEP),
+        loadData<ExerciseLog>(STORAGE_KEYS.EXERCISE),
         loadData<TriggerEntry>(STORAGE_KEYS.TRIGGERS),
         loadData<SymptomLog>(STORAGE_KEYS.SYMPTOMS),
       ]);
       setMeals(m);
       setWaterEntries(w);
       setSleepLogs(s);
+      setExerciseLogs(ex);
       setTriggers(t);
       setSymptomLogs(sym);
       setIsLoading(false);
@@ -164,6 +180,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSleepLogs((prev) => {
       const updated = prev.map((s) => (s.id === id ? { ...s, ...log } : s));
       saveData(STORAGE_KEYS.SLEEP, updated);
+      return updated;
+    });
+  }, []);
+
+  const saveExerciseLog = useCallback(async (log: Omit<ExerciseLog, "id">) => {
+    const newLog: ExerciseLog = { ...log, id: generateId() };
+    setExerciseLogs((prev) => {
+      const existing = prev.findIndex((e) => e.date === log.date);
+      let updated: ExerciseLog[];
+      if (existing >= 0) {
+        updated = [...prev];
+        updated[existing] = newLog;
+      } else {
+        updated = [...prev, newLog];
+      }
+      saveData(STORAGE_KEYS.EXERCISE, updated);
       return updated;
     });
   }, []);
@@ -225,12 +257,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [sleepLogs]
   );
 
+  const getTodayExercise = useCallback(
+    (date: string) => {
+      return exerciseLogs.find((e) => e.date === date);
+    },
+    [exerciseLogs]
+  );
+
   return (
     <AppContext.Provider
       value={{
         meals,
         waterEntries,
         sleepLogs,
+        exerciseLogs,
         triggers,
         symptomLogs,
         addMeal,
@@ -238,12 +278,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addWaterEntry,
         addSleepLog,
         updateSleepLog,
+        saveExerciseLog,
         addTrigger,
         deleteTrigger,
         addSymptomLog,
         updateSymptomLog,
         getTodayWaterTotal,
         getTodaySleep,
+        getTodayExercise,
         isLoading,
       }}
     >
