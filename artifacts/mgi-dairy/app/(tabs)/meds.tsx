@@ -9,53 +9,55 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import { useDateString } from "@/hooks/useDateString";
 
-export default function TriggersScreen() {
+export default function MedsScreen() {
   const colorScheme = useColorScheme();
   const colors = colorScheme === "dark" ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
-  const today = useDateString();
 
-  const { foodTriggers, addFoodTrigger, updateFoodTrigger, deleteFoodTrigger } = useApp();
+  const { medications, addMedication, updateMedication, deleteMedication } = useApp();
 
   const [showSheet, setShowSheet] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [food, setFood] = useState("");
+  const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
+  const [reminderTime, setReminderTime] = useState("08:00");
 
-  const sorted = [...foodTriggers].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...medications].sort((a, b) => a.name.localeCompare(b.name));
 
   const openAdd = () => {
     setEditId(null);
-    setFood("");
+    setName("");
     setNotes("");
+    setReminderTime("08:00");
     setShowSheet(true);
   };
 
-  const openEdit = (t: typeof foodTriggers[0]) => {
-    setEditId(t.id);
-    setFood(t.food);
-    setNotes(t.notes);
+  const openEdit = (m: typeof medications[0]) => {
+    setEditId(m.id);
+    setName(m.name);
+    setNotes(m.notes);
+    setReminderTime(m.reminderTime || "08:00");
     setShowSheet(true);
   };
 
   const handleSave = async () => {
-    if (!food.trim()) { Alert.alert("Required", "Please enter a food name."); return; }
+    if (!name.trim()) { Alert.alert("Required", "Please enter the medication name."); return; }
     if (editId) {
-      await updateFoodTrigger(editId, { food: food.trim(), notes: notes.trim() });
+      await updateMedication(editId, { name: name.trim(), notes: notes.trim(), reminderTime });
     } else {
-      await addFoodTrigger({ date: today, food: food.trim(), notes: notes.trim() });
+      await addMedication({ name: name.trim(), notes: notes.trim(), reminderTime, createdAt: new Date().toISOString() });
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert("Reminder Set", `Reminder set for ${reminderTime} daily.\n\nNote: Enable notifications in app settings to receive alerts on device.`);
     setShowSheet(false);
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = (id: string, medName: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert("Delete trigger?", name, [
+    Alert.alert("Delete medication?", medName, [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteFoodTrigger(id) },
+      { text: "Delete", style: "destructive", onPress: () => deleteMedication(id) },
     ]);
   };
 
@@ -67,8 +69,8 @@ export default function TriggersScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
         <View>
-          <Text style={[styles.headerTitle, { color: colors.headerText }]}>Triggers</Text>
-          <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Food sensitivities & reactions</Text>
+          <Text style={[styles.headerTitle, { color: colors.headerText }]}>Medications</Text>
+          <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Daily meds & supplements</Text>
         </View>
         <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
           <Feather name="plus" size={18} color="#fff" />
@@ -76,57 +78,57 @@ export default function TriggersScreen() {
       </View>
 
       {/* Summary banner */}
-      <View style={[styles.banner, { backgroundColor: colors.purple }]}>
-        <Feather name="alert-triangle" size={16} color="#fff" />
+      <View style={[styles.banner, { backgroundColor: colors.teal }]}>
+        <Feather name="package" size={16} color="#fff" />
         <Text style={styles.bannerText}>
-          {sorted.length} food trigger{sorted.length !== 1 ? "s" : ""} tracked
+          {sorted.length} medication{sorted.length !== 1 ? "s" : ""} tracked
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: bottomPad }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} showsVerticalScrollIndicator={false}>
         {sorted.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Feather name="alert-triangle" size={48} color={colors.placeholder} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No triggers logged</Text>
-            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Track foods that trigger your IBD symptoms.</Text>
+            <Feather name="package" size={48} color={colors.placeholder} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No medications added</Text>
+            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Add your daily medications and supplements with reminders.</Text>
             <TouchableOpacity style={[styles.emptyAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
               <Feather name="plus" size={16} color="#fff" />
-              <Text style={styles.emptyAddText}>Add First Trigger</Text>
+              <Text style={styles.emptyAddText}>Add First Medication</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={[styles.tableCard, { backgroundColor: colors.card }]}>
-            {/* Table header */}
-            <View style={[styles.tableRow, styles.tableHeaderRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.colHeader, { color: colors.textSecondary, flex: 2 }]}>Food</Text>
-              <Text style={[styles.colHeader, { color: colors.textSecondary, flex: 3 }]}>Notes</Text>
-              <View style={{ width: 60 }} />
-            </View>
-            {sorted.map((t, idx) => (
-              <TouchableOpacity
-                key={t.id}
-                style={[styles.tableRow, { borderBottomColor: idx < sorted.length - 1 ? colors.borderLight : "transparent" }]}
-                onPress={() => openEdit(t)}
-                onLongPress={() => handleDelete(t.id, t.food)}
-              >
-                <View style={{ flex: 2 }}>
-                  <Text style={[styles.foodCell, { color: colors.text }]} numberOfLines={1}>{t.food}</Text>
-                  <Text style={[styles.dateCell, { color: colors.placeholder }]}>{new Date(t.date + "T12:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</Text>
-                </View>
-                <Text style={[styles.notesCell, { color: colors.textSecondary, flex: 3 }]} numberOfLines={2}>
-                  {t.notes || <Text style={{ color: colors.placeholder, fontStyle: "italic" }}>No notes</Text>}
-                </Text>
-                <View style={styles.actionBtns}>
-                  <TouchableOpacity onPress={() => openEdit(t)} style={[styles.editBtn, { backgroundColor: colors.sectionBg }]}>
+          sorted.map((med) => (
+            <TouchableOpacity
+              key={med.id}
+              style={[styles.medCard, { backgroundColor: colors.card }]}
+              onPress={() => openEdit(med)}
+              onLongPress={() => handleDelete(med.id, med.name)}
+            >
+              <View style={[styles.medIcon, { backgroundColor: colors.sectionBg }]}>
+                <Feather name="package" size={20} color={colors.gold} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.medName, { color: colors.text }]}>{med.name}</Text>
+                {med.notes ? <Text style={[styles.medNotes, { color: colors.textSecondary }]} numberOfLines={1}>{med.notes}</Text> : null}
+              </View>
+              <View style={styles.medRight}>
+                {med.reminderTime ? (
+                  <View style={[styles.reminderChip, { backgroundColor: colors.sectionBg }]}>
+                    <Feather name="bell" size={11} color={colors.gold} />
+                    <Text style={[styles.reminderTime, { color: colors.gold }]}>{med.reminderTime}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.medActions}>
+                  <TouchableOpacity onPress={() => openEdit(med)} style={[styles.editBtn, { backgroundColor: colors.sectionBg }]}>
                     <Feather name="edit-2" size={13} color={colors.tint} />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleDelete(t.id, t.food)} style={[styles.deleteBtn, { backgroundColor: "#FEE2E2" }]}>
+                  <TouchableOpacity onPress={() => handleDelete(med.id, med.name)} style={[styles.deleteBtn, { backgroundColor: "#FEE2E2" }]}>
                     <Feather name="trash-2" size={13} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+              </View>
+            </TouchableOpacity>
+          ))
         )}
       </ScrollView>
 
@@ -134,27 +136,27 @@ export default function TriggersScreen() {
         <View style={styles.overlay}>
           <View style={[styles.bottomSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>{editId ? "Edit Trigger" : "Add Trigger"}</Text>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>{editId ? "Edit Medication" : "Add Medication"}</Text>
 
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Food Name</Text>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Name / Supplement</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
-              value={food}
-              onChangeText={setFood}
-              placeholder="e.g. Dairy, Gluten, Spicy food…"
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. Mesalazine 400mg, Vitamin D…"
               placeholderTextColor={colors.placeholder}
             />
 
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>Notes</Text>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>Notes / Dosage</Text>
             <View style={[styles.notesInputRow, { backgroundColor: colors.inputBg }]}>
               <TextInput
                 style={[styles.notesInput, { color: colors.text }]}
                 value={notes}
                 onChangeText={setNotes}
-                placeholder="Describe the reaction or symptoms…"
+                placeholder="e.g. Take with food, 1 tablet twice daily…"
                 placeholderTextColor={colors.placeholder}
                 multiline
-                numberOfLines={4}
+                numberOfLines={3}
               />
               <TouchableOpacity
                 style={[styles.micBtn, { backgroundColor: colors.borderLight }]}
@@ -162,6 +164,27 @@ export default function TriggersScreen() {
               >
                 <Feather name="mic" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>Daily Reminder Time</Text>
+            <View style={[styles.reminderRow, { backgroundColor: colors.inputBg }]}>
+              <Feather name="bell" size={16} color={colors.gold} style={{ marginLeft: 14 }} />
+              <TextInput
+                style={[styles.reminderInput, { color: colors.text }]}
+                value={reminderTime}
+                onChangeText={setReminderTime}
+                placeholder="HH:MM"
+                placeholderTextColor={colors.placeholder}
+                keyboardType="numbers-and-punctuation"
+              />
+              <Text style={[styles.reminderHint, { color: colors.placeholder }]}>24h format</Text>
+            </View>
+
+            <View style={[styles.alarmNote, { backgroundColor: colors.sectionBg }]}>
+              <Feather name="info" size={14} color={colors.gold} />
+              <Text style={[styles.alarmNoteText, { color: colors.textSecondary }]}>
+                Enable notifications in device settings to receive daily reminders.
+              </Text>
             </View>
 
             <View style={styles.modalButtons}>
@@ -192,14 +215,14 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: 14, textAlign: "center", paddingHorizontal: 40 },
   emptyAddBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24, marginTop: 8 },
   emptyAddText: { color: "#fff", fontSize: 14, fontWeight: "600" as const },
-  tableCard: { margin: 16, borderRadius: 16, overflow: "hidden", shadowColor: "rgba(0,0,0,0.06)", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
-  tableHeaderRow: { borderBottomWidth: 1.5 },
-  tableRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5 },
-  colHeader: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.5, textTransform: "uppercase" },
-  foodCell: { fontSize: 14, fontWeight: "600" as const },
-  dateCell: { fontSize: 11, marginTop: 2 },
-  notesCell: { fontSize: 13, lineHeight: 18, paddingHorizontal: 8 },
-  actionBtns: { width: 60, flexDirection: "row", gap: 6, justifyContent: "flex-end" },
+  medCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, marginBottom: 10, shadowColor: "rgba(0,0,0,0.05)", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 1, gap: 12 },
+  medIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  medName: { fontSize: 15, fontWeight: "600" as const },
+  medNotes: { fontSize: 13, marginTop: 2 },
+  medRight: { alignItems: "flex-end", gap: 6 },
+  reminderChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  reminderTime: { fontSize: 12, fontWeight: "600" as const },
+  medActions: { flexDirection: "row", gap: 6 },
   editBtn: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   deleteBtn: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
@@ -208,9 +231,14 @@ const styles = StyleSheet.create({
   sheetTitle: { fontSize: 20, fontWeight: "700" as const, marginBottom: 16 },
   fieldLabel: { fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.5, marginBottom: 8 },
   input: { height: 48, borderRadius: 10, paddingHorizontal: 14, fontSize: 15 },
-  notesInputRow: { flexDirection: "row", alignItems: "flex-start", borderRadius: 10, padding: 12, minHeight: 100 },
+  notesInputRow: { flexDirection: "row", alignItems: "flex-start", borderRadius: 10, padding: 12, minHeight: 90 },
   notesInput: { flex: 1, fontSize: 14, lineHeight: 22, textAlignVertical: "top" },
   micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginLeft: 8 },
+  reminderRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, height: 50 },
+  reminderInput: { flex: 1, paddingHorizontal: 12, fontSize: 18, fontWeight: "600" as const },
+  reminderHint: { fontSize: 12, paddingRight: 14 },
+  alarmNote: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, marginTop: 12 },
+  alarmNoteText: { flex: 1, fontSize: 12, lineHeight: 18 },
   modalButtons: { flexDirection: "row", gap: 12, marginTop: 16 },
   cancelBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: "center" },
   cancelText: { fontSize: 15, fontWeight: "600" as const },

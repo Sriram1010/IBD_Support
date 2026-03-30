@@ -23,9 +23,13 @@ function NativeTabLayout() {
         <Icon sf={{ default: "exclamationmark.triangle", selected: "exclamationmark.triangle.fill" }} />
         <Label>Triggers</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="meds">
+        <Icon sf={{ default: "pill", selected: "pill.fill" }} />
+        <Label>Meds</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="mgi">
-        <Icon sf={{ default: "heart.text.square", selected: "heart.text.square.fill" }} />
-        <Label>MGI</Label>
+        <Icon sf={{ default: "globe", selected: "globe.fill" }} />
+        <Label>Academy</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -63,24 +67,15 @@ function ClassicTabLayout() {
           ...(isWeb ? { height: 84 } : {}),
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "500" as const,
           marginBottom: isIOS ? 0 : 4,
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView
-              intensity={80}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           ) : isWeb ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: isDark ? "#0F0A1E" : "#FFFFFF" },
-              ]}
-            />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? "#0F0A1E" : "#FFFFFF" }]} />
           ) : null,
       }}
     >
@@ -89,11 +84,7 @@ function ClassicTabLayout() {
         options={{
           title: "Diary",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="book" tintColor={color} size={22} />
-            ) : (
-              <Feather name="book" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="book" tintColor={color} size={22} /> : <Feather name="book" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -101,11 +92,7 @@ function ClassicTabLayout() {
         options={{
           title: "Calendar",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="calendar" tintColor={color} size={22} />
-            ) : (
-              <Feather name="calendar" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="calendar" tintColor={color} size={22} /> : <Feather name="calendar" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -113,23 +100,23 @@ function ClassicTabLayout() {
         options={{
           title: "Triggers",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="exclamationmark.triangle" tintColor={color} size={22} />
-            ) : (
-              <Feather name="alert-triangle" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="exclamationmark.triangle" tintColor={color} size={22} /> : <Feather name="alert-triangle" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="meds"
+        options={{
+          title: "Meds",
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="pills.circle" tintColor={color} size={22} /> : <Feather name="package" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="mgi"
         options={{
-          title: "MGI",
+          title: "Academy",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="heart.text.square" tintColor={color} size={22} />
-            ) : (
-              <Feather name="activity" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="globe" tintColor={color} size={22} /> : <Feather name="globe" size={22} color={color} />,
         }}
       />
     </Tabs>
