@@ -37,13 +37,17 @@ export interface BowelLog {
   date: string;
   color: "red" | "yellow" | "green";
   photos: string[];
+  count: number;
 }
+
+export type FoodCategory = "trigger" | "safe" | "reintroduce";
 
 export interface FoodTrigger {
   id: string;
   date: string;
   food: string;
   notes: string;
+  category: FoodCategory;
 }
 
 export interface Medication {
@@ -85,6 +89,8 @@ interface AppContextType {
   triggers: TriggerEntry[];
   symptomLogs: SymptomLog[];
   waterGoalMl: number;
+  sleepGoalHours: number;
+  exerciseGoalMinutes: number;
   addMeal: (meal: Omit<MealEntry, "id">) => Promise<void>;
   deleteMeal: (id: string) => Promise<void>;
   addWaterEntry: (entry: Omit<WaterEntry, "id">) => Promise<void>;
@@ -104,6 +110,8 @@ interface AppContextType {
   addSymptomLog: (log: Omit<SymptomLog, "id">) => Promise<void>;
   updateSymptomLog: (id: string, log: Partial<SymptomLog>) => Promise<void>;
   setWaterGoalMl: (ml: number) => Promise<void>;
+  setSleepGoalHours: (h: number) => Promise<void>;
+  setExerciseGoalMinutes: (m: number) => Promise<void>;
   getTodayWaterTotal: (date: string) => number;
   getTodaySleep: (date: string) => SleepLog | undefined;
   getTodayExercise: (date: string) => ExerciseLog | undefined;
@@ -122,9 +130,9 @@ const STORAGE_KEYS = {
   TRIGGERS: "mgi_triggers",
   SYMPTOMS: "mgi_symptoms",
   WATER_GOAL: "mgi_water_goal",
+  SLEEP_GOAL: "mgi_sleep_goal",
+  EXERCISE_GOAL: "mgi_exercise_goal",
 };
-
-const DEFAULT_WATER_GOAL = 3785;
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -156,7 +164,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [triggers, setTriggers] = useState<TriggerEntry[]>([]);
   const [symptomLogs, setSymptomLogs] = useState<SymptomLog[]>([]);
-  const [waterGoalMl, setWaterGoalMlState] = useState<number>(DEFAULT_WATER_GOAL);
+  const [waterGoalMl, setWaterGoalMlState] = useState<number>(3785);
+  const [sleepGoalHours, setSleepGoalHoursState] = useState<number>(8);
+  const [exerciseGoalMinutes, setExerciseGoalMinutesState] = useState<number>(30);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -172,7 +182,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loadData<TriggerEntry>(STORAGE_KEYS.TRIGGERS),
         loadData<SymptomLog>(STORAGE_KEYS.SYMPTOMS),
       ]);
-      const goal = await AsyncStorage.getItem(STORAGE_KEYS.WATER_GOAL);
+      const [wg, sg, eg] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.WATER_GOAL),
+        AsyncStorage.getItem(STORAGE_KEYS.SLEEP_GOAL),
+        AsyncStorage.getItem(STORAGE_KEYS.EXERCISE_GOAL),
+      ]);
       setMeals(m);
       setWaterEntries(w);
       setSleepLogs(s);
@@ -182,115 +196,127 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setMedications(med);
       setTriggers(t);
       setSymptomLogs(sym);
-      if (goal) setWaterGoalMlState(parseInt(goal, 10));
+      if (wg) setWaterGoalMlState(parseInt(wg, 10));
+      if (sg) setSleepGoalHoursState(parseFloat(sg));
+      if (eg) setExerciseGoalMinutesState(parseInt(eg, 10));
       setIsLoading(false);
     };
     init();
   }, []);
 
   const addMeal = useCallback(async (meal: Omit<MealEntry, "id">) => {
-    const newMeal: MealEntry = { ...meal, id: generateId() };
-    setMeals((prev) => { const u = [...prev, newMeal]; saveData(STORAGE_KEYS.MEALS, u); return u; });
+    const n: MealEntry = { ...meal, id: generateId() };
+    setMeals((p) => { const u = [...p, n]; saveData(STORAGE_KEYS.MEALS, u); return u; });
   }, []);
 
   const deleteMeal = useCallback(async (id: string) => {
-    setMeals((prev) => { const u = prev.filter((m) => m.id !== id); saveData(STORAGE_KEYS.MEALS, u); return u; });
+    setMeals((p) => { const u = p.filter((m) => m.id !== id); saveData(STORAGE_KEYS.MEALS, u); return u; });
   }, []);
 
   const addWaterEntry = useCallback(async (entry: Omit<WaterEntry, "id">) => {
-    const newEntry: WaterEntry = { ...entry, id: generateId() };
-    setWaterEntries((prev) => { const u = [...prev, newEntry]; saveData(STORAGE_KEYS.WATER, u); return u; });
+    const n: WaterEntry = { ...entry, id: generateId() };
+    setWaterEntries((p) => { const u = [...p, n]; saveData(STORAGE_KEYS.WATER, u); return u; });
   }, []);
 
   const addSleepLog = useCallback(async (log: Omit<SleepLog, "id">) => {
-    const newLog: SleepLog = { ...log, id: generateId() };
-    setSleepLogs((prev) => {
-      const idx = prev.findIndex((s) => s.date === log.date);
-      const u = idx >= 0 ? prev.map((s, i) => i === idx ? newLog : s) : [...prev, newLog];
+    const n: SleepLog = { ...log, id: generateId() };
+    setSleepLogs((p) => {
+      const idx = p.findIndex((s) => s.date === log.date);
+      const u = idx >= 0 ? p.map((s, i) => i === idx ? n : s) : [...p, n];
       saveData(STORAGE_KEYS.SLEEP, u); return u;
     });
   }, []);
 
   const updateSleepLog = useCallback(async (id: string, log: Partial<SleepLog>) => {
-    setSleepLogs((prev) => { const u = prev.map((s) => s.id === id ? { ...s, ...log } : s); saveData(STORAGE_KEYS.SLEEP, u); return u; });
+    setSleepLogs((p) => { const u = p.map((s) => s.id === id ? { ...s, ...log } : s); saveData(STORAGE_KEYS.SLEEP, u); return u; });
   }, []);
 
   const saveExerciseLog = useCallback(async (log: Omit<ExerciseLog, "id">) => {
-    const newLog: ExerciseLog = { ...log, id: generateId() };
-    setExerciseLogs((prev) => {
-      const idx = prev.findIndex((e) => e.date === log.date);
-      const u = idx >= 0 ? prev.map((e, i) => i === idx ? newLog : e) : [...prev, newLog];
+    const n: ExerciseLog = { ...log, id: generateId() };
+    setExerciseLogs((p) => {
+      const idx = p.findIndex((e) => e.date === log.date);
+      const u = idx >= 0 ? p.map((e, i) => i === idx ? n : e) : [...p, n];
       saveData(STORAGE_KEYS.EXERCISE, u); return u;
     });
   }, []);
 
   const saveBowelLog = useCallback(async (log: Omit<BowelLog, "id">) => {
-    const newLog: BowelLog = { ...log, id: generateId() };
-    setBowelLogs((prev) => {
-      const idx = prev.findIndex((b) => b.date === log.date);
-      const u = idx >= 0 ? prev.map((b, i) => i === idx ? newLog : b) : [...prev, newLog];
+    const n: BowelLog = { ...log, id: generateId() };
+    setBowelLogs((p) => {
+      const idx = p.findIndex((b) => b.date === log.date);
+      const u = idx >= 0 ? p.map((b, i) => i === idx ? n : b) : [...p, n];
       saveData(STORAGE_KEYS.BOWEL, u); return u;
     });
   }, []);
 
   const deleteBowelPhoto = useCallback(async (date: string, photoUri: string) => {
-    setBowelLogs((prev) => {
-      const u = prev.map((b) => b.date === date ? { ...b, photos: b.photos.filter((p) => p !== photoUri) } : b);
+    setBowelLogs((p) => {
+      const u = p.map((b) => b.date === date ? { ...b, photos: b.photos.filter((ph) => ph !== photoUri) } : b);
       saveData(STORAGE_KEYS.BOWEL, u); return u;
     });
   }, []);
 
   const addFoodTrigger = useCallback(async (t: Omit<FoodTrigger, "id">) => {
-    const newT: FoodTrigger = { ...t, id: generateId() };
-    setFoodTriggers((prev) => { const u = [...prev, newT]; saveData(STORAGE_KEYS.FOOD_TRIGGERS, u); return u; });
+    const n: FoodTrigger = { ...t, id: generateId() };
+    setFoodTriggers((p) => { const u = [...p, n]; saveData(STORAGE_KEYS.FOOD_TRIGGERS, u); return u; });
   }, []);
 
   const updateFoodTrigger = useCallback(async (id: string, t: Partial<FoodTrigger>) => {
-    setFoodTriggers((prev) => { const u = prev.map((f) => f.id === id ? { ...f, ...t } : f); saveData(STORAGE_KEYS.FOOD_TRIGGERS, u); return u; });
+    setFoodTriggers((p) => { const u = p.map((f) => f.id === id ? { ...f, ...t } : f); saveData(STORAGE_KEYS.FOOD_TRIGGERS, u); return u; });
   }, []);
 
   const deleteFoodTrigger = useCallback(async (id: string) => {
-    setFoodTriggers((prev) => { const u = prev.filter((f) => f.id !== id); saveData(STORAGE_KEYS.FOOD_TRIGGERS, u); return u; });
+    setFoodTriggers((p) => { const u = p.filter((f) => f.id !== id); saveData(STORAGE_KEYS.FOOD_TRIGGERS, u); return u; });
   }, []);
 
   const addMedication = useCallback(async (m: Omit<Medication, "id">) => {
-    const newM: Medication = { ...m, id: generateId() };
-    setMedications((prev) => { const u = [...prev, newM]; saveData(STORAGE_KEYS.MEDICATIONS, u); return u; });
+    const n: Medication = { ...m, id: generateId() };
+    setMedications((p) => { const u = [...p, n]; saveData(STORAGE_KEYS.MEDICATIONS, u); return u; });
   }, []);
 
   const updateMedication = useCallback(async (id: string, m: Partial<Medication>) => {
-    setMedications((prev) => { const u = prev.map((med) => med.id === id ? { ...med, ...m } : med); saveData(STORAGE_KEYS.MEDICATIONS, u); return u; });
+    setMedications((p) => { const u = p.map((med) => med.id === id ? { ...med, ...m } : med); saveData(STORAGE_KEYS.MEDICATIONS, u); return u; });
   }, []);
 
   const deleteMedication = useCallback(async (id: string) => {
-    setMedications((prev) => { const u = prev.filter((m) => m.id !== id); saveData(STORAGE_KEYS.MEDICATIONS, u); return u; });
+    setMedications((p) => { const u = p.filter((m) => m.id !== id); saveData(STORAGE_KEYS.MEDICATIONS, u); return u; });
   }, []);
 
   const addTrigger = useCallback(async (trigger: Omit<TriggerEntry, "id">) => {
-    const newT: TriggerEntry = { ...trigger, id: generateId() };
-    setTriggers((prev) => { const u = [...prev, newT]; saveData(STORAGE_KEYS.TRIGGERS, u); return u; });
+    const n: TriggerEntry = { ...trigger, id: generateId() };
+    setTriggers((p) => { const u = [...p, n]; saveData(STORAGE_KEYS.TRIGGERS, u); return u; });
   }, []);
 
   const deleteTrigger = useCallback(async (id: string) => {
-    setTriggers((prev) => { const u = prev.filter((t) => t.id !== id); saveData(STORAGE_KEYS.TRIGGERS, u); return u; });
+    setTriggers((p) => { const u = p.filter((t) => t.id !== id); saveData(STORAGE_KEYS.TRIGGERS, u); return u; });
   }, []);
 
   const addSymptomLog = useCallback(async (log: Omit<SymptomLog, "id">) => {
-    const newLog: SymptomLog = { ...log, id: generateId() };
-    setSymptomLogs((prev) => {
-      const idx = prev.findIndex((s) => s.date === log.date);
-      const u = idx >= 0 ? prev.map((s, i) => i === idx ? newLog : s) : [...prev, newLog];
+    const n: SymptomLog = { ...log, id: generateId() };
+    setSymptomLogs((p) => {
+      const idx = p.findIndex((s) => s.date === log.date);
+      const u = idx >= 0 ? p.map((s, i) => i === idx ? n : s) : [...p, n];
       saveData(STORAGE_KEYS.SYMPTOMS, u); return u;
     });
   }, []);
 
   const updateSymptomLog = useCallback(async (id: string, log: Partial<SymptomLog>) => {
-    setSymptomLogs((prev) => { const u = prev.map((s) => s.id === id ? { ...s, ...log } : s); saveData(STORAGE_KEYS.SYMPTOMS, u); return u; });
+    setSymptomLogs((p) => { const u = p.map((s) => s.id === id ? { ...s, ...log } : s); saveData(STORAGE_KEYS.SYMPTOMS, u); return u; });
   }, []);
 
   const setWaterGoalMl = useCallback(async (ml: number) => {
     setWaterGoalMlState(ml);
     await AsyncStorage.setItem(STORAGE_KEYS.WATER_GOAL, String(ml));
+  }, []);
+
+  const setSleepGoalHours = useCallback(async (h: number) => {
+    setSleepGoalHoursState(h);
+    await AsyncStorage.setItem(STORAGE_KEYS.SLEEP_GOAL, String(h));
+  }, []);
+
+  const setExerciseGoalMinutes = useCallback(async (m: number) => {
+    setExerciseGoalMinutesState(m);
+    await AsyncStorage.setItem(STORAGE_KEYS.EXERCISE_GOAL, String(m));
   }, []);
 
   const getTodayWaterTotal = useCallback(
@@ -317,13 +343,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         meals, waterEntries, sleepLogs, exerciseLogs, bowelLogs,
-        foodTriggers, medications, triggers, symptomLogs, waterGoalMl,
+        foodTriggers, medications, triggers, symptomLogs,
+        waterGoalMl, sleepGoalHours, exerciseGoalMinutes,
         addMeal, deleteMeal, addWaterEntry, addSleepLog, updateSleepLog,
         saveExerciseLog, saveBowelLog, deleteBowelPhoto,
         addFoodTrigger, updateFoodTrigger, deleteFoodTrigger,
         addMedication, updateMedication, deleteMedication,
         addTrigger, deleteTrigger, addSymptomLog, updateSymptomLog,
-        setWaterGoalMl, getTodayWaterTotal, getTodaySleep, getTodayExercise, getBowelLog,
+        setWaterGoalMl, setSleepGoalHours, setExerciseGoalMinutes,
+        getTodayWaterTotal, getTodaySleep, getTodayExercise, getBowelLog,
         isLoading,
       }}
     >

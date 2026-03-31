@@ -71,3 +71,20 @@ export function calcSleepHours(bedtime: string, wakeTime: string): string {
   if (minutes === 0) return `${hours}h`;
   return `${hours}h ${minutes}m`;
 }
+
+export function calcSleepHoursNum(bedtime: string, wakeTime: string): number {
+  if (!bedtime || !wakeTime) return 0;
+  const [bh, bm] = bedtime.split(":").map(Number);
+  const [wh, wm] = wakeTime.split(":").map(Number);
+  let bedMinutes = bh * 60 + bm;
+  let wakeMinutes = wh * 60 + wm;
+  if (wakeMinutes <= bedMinutes) wakeMinutes += 24 * 60;
+  return parseFloat(((wakeMinutes - bedMinutes) / 60).toFixed(1));
+}
+
+export function getProgressColor(pct: number): string {
+  if (pct < 35) return "#EF4444";
+  if (pct < 65) return "#F97316";
+  if (pct < 85) return "#FBBF24";
+  return "#10B981";
+}

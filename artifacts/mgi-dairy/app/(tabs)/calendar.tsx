@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Modal, Image, Alert, Platform, useColorScheme,
+  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, TextInput,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -9,7 +10,7 @@ import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, BowelLog } from "@/context/AppContext";
 import { calcSleepHours } from "@/hooks/useDateString";
 
 type ViewMode = "monthly" | "weekly" | "yearly";
@@ -47,7 +48,10 @@ export default function CalendarScreen() {
   const [showDaySheet, setShowDaySheet] = useState(false);
   const [sheetDate, setSheetDate] = useState(todayStr);
   const [bowelColor, setBowelColor] = useState<BowelColor>("green");
+  const [bowelCount, setBowelCount] = useState("0");
   const [showImageViewer, setShowImageViewer] = useState<string | null>(null);
+  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   const {
     meals, waterEntries, sleepLogs, bowelLogs,
@@ -64,6 +68,7 @@ export default function CalendarScreen() {
     setSheetDate(date);
     const existing = bowelMap[date];
     setBowelColor(existing?.color ?? "green");
+    setBowelCount(String(existing?.count ?? 0));
     setShowDaySheet(true);
   };
 
@@ -77,6 +82,7 @@ export default function CalendarScreen() {
     await saveBowelLog({
       date: sheetDate,
       color: bowelColor,
+      count: Math.max(0, parseInt(bowelCount, 10) || 0),
       photos: existing?.photos ?? [],
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -96,12 +102,8 @@ export default function CalendarScreen() {
           if (cp.status !== "granted") { Alert.alert("Permission needed", "Camera access required."); return; }
           const r = await ImagePicker.launchCameraAsync({ quality: 0.8 });
           if (!r.canceled && r.assets[0]) {
-            const existing = bowelMap[sheetDate];
-            await saveBowelLog({
-              date: sheetDate,
-              color: existing?.color ?? bowelColor,
-              photos: [...(existing?.photos ?? []), r.assets[0].uri],
-            });
+            const ex = bowelMap[sheetDate];
+            await saveBowelLog({ date: sheetDate, color: ex?.color ?? bowelColor, count: parseInt(bowelCount, 10) || 0, photos: [...(ex?.photos ?? []), r.assets[0].uri] });
           }
         },
       },
@@ -110,12 +112,8 @@ export default function CalendarScreen() {
         onPress: async () => {
           const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
           if (!r.canceled && r.assets[0]) {
-            const existing = bowelMap[sheetDate];
-            await saveBowelLog({
-              date: sheetDate,
-              color: existing?.color ?? bowelColor,
-              photos: [...(existing?.photos ?? []), r.assets[0].uri],
-            });
+            const ex = bowelMap[sheetDate];
+            await saveBowelLog({ date: sheetDate, color: ex?.color ?? bowelColor, count: parseInt(bowelCount, 10) || 0, photos: [...(ex?.photos ?? []), r.assets[0].uri] });
           }
         },
       },
@@ -128,6 +126,12 @@ export default function CalendarScreen() {
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => deleteBowelPhoto(sheetDate, uri) },
     ]);
+  };
+
+  const openPhotoViewer = (photos: string[], startIdx: number) => {
+    setViewerImages(photos);
+    setViewerIndex(startIdx);
+    setShowImageViewer(photos[startIdx]);
   };
 
   const topPad = Platform.OS === "web" ? 67 + insets.top : 0;
@@ -143,6 +147,12 @@ export default function CalendarScreen() {
   const selectedMeals = meals.filter((m) => m.date === selectedDate);
   const selectedWater = waterEntries.filter((w) => w.date === selectedDate).reduce((s, w) => s + w.amountMl, 0);
   const selectedSleep = sleepLogs.find((s) => s.date === selectedDate);
+
+  // Recent photos from all bowel logs for the current month
+  const monthPhotos = bowelLogs
+    .filter((b) => b.date.startsWith(`${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`))
+    .flatMap((b) => b.photos.map((uri) => ({ uri, date: b.date, color: b.color })))
+    .slice(0, 10);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -176,15 +186,26 @@ export default function CalendarScreen() {
           />
         )}
         {viewMode === "weekly" && (
-          <WeeklyView
-            todayStr={todayStr} bowelMap={bowelMap} colors={colors} onDayTap={handleDayTap}
-          />
+          <WeeklyView todayStr={todayStr} bowelMap={bowelMap} colors={colors} onDayTap={handleDayTap} />
         )}
         {viewMode === "yearly" && (
-          <YearlyView
-            year={viewYear} bowelMap={bowelMap} todayStr={todayStr} colors={colors}
-            onYearChange={(y) => setViewYear(y)} onDayTap={handleDayTap}
-          />
+          <YearlyView year={viewYear} bowelMap={bowelMap} todayStr={todayStr} colors={colors} onYearChange={(y) => setViewYear(y)} onDayTap={handleDayTap} />
+        )}
+
+        {/* Photo thumbnails below calendar (current month) */}
+        {viewMode === "monthly" && monthPhotos.length > 0 && (
+          <View style={styles.photoStrip}>
+            <Text style={[styles.photoStripTitle, { color: colors.textSecondary }]}>Photos this month</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {monthPhotos.map((p, idx) => (
+                <TouchableOpacity key={`${p.uri}-${idx}`} style={styles.photoThumbWrap} onPress={() => openPhotoViewer(monthPhotos.map((x) => x.uri), idx)}>
+                  <Image source={{ uri: p.uri }} style={styles.photoThumb} />
+                  <View style={[styles.photoThumbDot, { backgroundColor: bowelDotColor(p.color as BowelColor) }]} />
+                  <Text style={[styles.photoThumbDate, { color: colors.placeholder }]}>{p.date.slice(5).replace("-", "/")}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         )}
 
         {/* Selected day summary */}
@@ -194,12 +215,27 @@ export default function CalendarScreen() {
               {new Date(selectedDate + "T12:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
             </Text>
             {bowelMap[selectedDate] && (
-              <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+              <TouchableOpacity style={[styles.summaryCard, { backgroundColor: colors.card }]} onPress={() => handleDayTap(selectedDate)}>
                 <View style={[styles.bowelDot, { backgroundColor: bowelDotColor(bowelMap[selectedDate].color) }]} />
-                <Text style={[styles.summaryTitle, { color: colors.text }]}>
-                  {bowelMap[selectedDate].color.charAt(0).toUpperCase() + bowelMap[selectedDate].color.slice(1)} — bowel log
-                </Text>
-              </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.summaryTitle, { color: colors.text }]}>
+                    {bowelMap[selectedDate].color.charAt(0).toUpperCase() + bowelMap[selectedDate].color.slice(1)} bowel log
+                  </Text>
+                  {(bowelMap[selectedDate].count ?? 0) > 0 && (
+                    <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>
+                      {bowelMap[selectedDate].count} movement{bowelMap[selectedDate].count !== 1 ? "s" : ""}
+                    </Text>
+                  )}
+                </View>
+                {bowelMap[selectedDate].photos.length > 0 && (
+                  <View style={styles.thumbRow}>
+                    {bowelMap[selectedDate].photos.slice(0, 3).map((uri, i) => (
+                      <Image key={i} source={{ uri }} style={styles.summaryThumb} />
+                    ))}
+                  </View>
+                )}
+                <Feather name="chevron-right" size={16} color={colors.placeholder} />
+              </TouchableOpacity>
             )}
             {selectedMeals.length > 0 && (
               <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
@@ -227,74 +263,121 @@ export default function CalendarScreen() {
 
       {/* DAY SHEET */}
       <Modal visible={showDaySheet} animationType="slide" transparent>
-        <View style={styles.overlay}>
-          <View style={[styles.bottomSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>
-                {new Date(sheetDate + "T12:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-              </Text>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View style={styles.overlay}>
+            <TouchableWithoutFeedback onPress={() => setShowDaySheet(false)}>
+              <View style={StyleSheet.absoluteFill} />
+            </TouchableWithoutFeedback>
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={[styles.bottomSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+                  <Text style={[styles.sheetTitle, { color: colors.text }]}>
+                    {new Date(sheetDate + "T12:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                  </Text>
 
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Bowel Movement</Text>
-              <View style={styles.radioRow}>
-                {([["red", "Severe"], ["yellow", "Moderate"], ["green", "Normal"]] as [BowelColor, string][]).map(([c, label]) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={[styles.radioOption, { backgroundColor: colors.sectionBg, borderColor: bowelColor === c ? bowelDotColor(c) : "transparent", borderWidth: 2 }]}
-                    onPress={() => setBowelColor(c)}
-                  >
-                    <View style={[styles.radioColorDot, { backgroundColor: bowelDotColor(c) }]} />
-                    <Text style={[styles.radioLabel, { color: colors.text }]}>{label}</Text>
-                    {bowelColor === c && <Feather name="check" size={14} color={bowelDotColor(c)} style={{ marginLeft: "auto" }} />}
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple, marginBottom: 16 }]} onPress={handleSaveBowelLog}>
-                <Text style={styles.saveText}>Save Log</Text>
-              </TouchableOpacity>
-
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Photos</Text>
-              <TouchableOpacity style={[styles.photoAddBtn, { backgroundColor: colors.sectionBg, borderColor: colors.border }]} onPress={handleAddPhoto}>
-                <Feather name="camera" size={18} color={colors.gold} />
-                <Text style={[styles.photoAddText, { color: colors.gold }]}>Add Photo</Text>
-              </TouchableOpacity>
-
-              {sheetPhotos.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-                  {sheetPhotos.map((uri) => (
-                    <TouchableOpacity key={uri} style={{ marginRight: 10 }} onPress={() => setShowImageViewer(uri)}>
-                      <Image source={{ uri }} style={styles.photoThumb} />
-                      <TouchableOpacity style={styles.photoDeleteBtn} onPress={() => handleDeletePhoto(uri)}>
-                        <Feather name="x" size={12} color="#fff" />
+                  {/* Bowel Color */}
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Bowel Movement Color</Text>
+                  <View style={styles.radioRow}>
+                    {([["red", "Severe"], ["yellow", "Moderate"], ["green", "Normal"]] as [BowelColor, string][]).map(([c, label]) => (
+                      <TouchableOpacity
+                        key={c}
+                        style={[styles.radioOption, { backgroundColor: colors.sectionBg, borderColor: bowelColor === c ? bowelDotColor(c) : "transparent", borderWidth: 2 }]}
+                        onPress={() => setBowelColor(c)}
+                      >
+                        <View style={[styles.radioColorDot, { backgroundColor: bowelDotColor(c) }]} />
+                        <Text style={[styles.radioLabel, { color: colors.text }]}>{label}</Text>
+                        {bowelColor === c && <Feather name="check" size={14} color={bowelDotColor(c)} style={{ marginLeft: "auto" }} />}
                       </TouchableOpacity>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
+                    ))}
+                  </View>
 
-              <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg, marginTop: 16 }]} onPress={() => setShowDaySheet(false)}>
-                <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Close</Text>
-              </TouchableOpacity>
-            </ScrollView>
+                  {/* Bowel Count */}
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>Bowel Movement Count</Text>
+                  <View style={[styles.countRow, { backgroundColor: colors.sectionBg }]}>
+                    <TouchableOpacity
+                      style={[styles.countBtn, { backgroundColor: colors.border }]}
+                      onPress={() => setBowelCount((v) => String(Math.max(0, (parseInt(v, 10) || 0) - 1)))}
+                    >
+                      <Feather name="minus" size={18} color={colors.text} />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.countInput, { color: colors.text }]}
+                      value={bowelCount}
+                      onChangeText={(v) => setBowelCount(v.replace(/[^0-9]/g, ""))}
+                      keyboardType="numeric"
+                      maxLength={2}
+                      selectTextOnFocus
+                    />
+                    <TouchableOpacity
+                      style={[styles.countBtn, { backgroundColor: colors.teal }]}
+                      onPress={() => setBowelCount((v) => String(Math.min(30, (parseInt(v, 10) || 0) + 1)))}
+                    >
+                      <Feather name="plus" size={18} color="#fff" />
+                    </TouchableOpacity>
+                    <Text style={[styles.countLabel, { color: colors.textSecondary }]}>movements today</Text>
+                  </View>
+
+                  <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple, marginBottom: 16 }]} onPress={handleSaveBowelLog}>
+                    <Text style={styles.saveText}>Save Log</Text>
+                  </TouchableOpacity>
+
+                  {/* Photos */}
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Photos</Text>
+                  <TouchableOpacity style={[styles.photoAddBtn, { backgroundColor: colors.sectionBg, borderColor: colors.border }]} onPress={handleAddPhoto}>
+                    <Feather name="camera" size={18} color={colors.gold} />
+                    <Text style={[styles.photoAddText, { color: colors.gold }]}>Add Photo</Text>
+                  </TouchableOpacity>
+
+                  {sheetPhotos.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+                      {sheetPhotos.map((uri, idx) => (
+                        <TouchableOpacity key={uri} style={{ marginRight: 10 }} onPress={() => openPhotoViewer(sheetPhotos, idx)}>
+                          <Image source={{ uri }} style={styles.bigPhotoThumb} />
+                          <TouchableOpacity style={styles.photoDeleteBtn} onPress={() => handleDeletePhoto(uri)}>
+                            <Feather name="x" size={12} color="#fff" />
+                          </TouchableOpacity>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+
+                  <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg, marginTop: 16 }]} onPress={() => setShowDaySheet(false)}>
+                    <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Close</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* IMAGE VIEWER */}
       <Modal visible={!!showImageViewer} animationType="fade" transparent>
-        <TouchableOpacity style={styles.imageViewerOverlay} activeOpacity={1} onPress={() => setShowImageViewer(null)}>
+        <View style={styles.imageViewerOverlay}>
           {showImageViewer && <Image source={{ uri: showImageViewer }} style={styles.fullImage} resizeMode="contain" />}
+          <View style={styles.viewerNav}>
+            {viewerIndex > 0 && (
+              <TouchableOpacity style={styles.viewerNavBtn} onPress={() => { const i = viewerIndex - 1; setViewerIndex(i); setShowImageViewer(viewerImages[i]); }}>
+                <Feather name="chevron-left" size={28} color="#fff" />
+              </TouchableOpacity>
+            )}
+            <Text style={styles.viewerCounter}>{viewerIndex + 1} / {viewerImages.length}</Text>
+            {viewerIndex < viewerImages.length - 1 && (
+              <TouchableOpacity style={styles.viewerNavBtn} onPress={() => { const i = viewerIndex + 1; setViewerIndex(i); setShowImageViewer(viewerImages[i]); }}>
+                <Feather name="chevron-right" size={28} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
           <TouchableOpacity style={styles.closeBtn} onPress={() => setShowImageViewer(null)}>
             <Feather name="x" size={24} color="#fff" />
           </TouchableOpacity>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
 }
 
-// ── Monthly View ──
 function MonthlyView({ viewYear, viewMonth, todayStr, selectedDate, bowelMap, colors, onPrev, onNext, onDayTap }: any) {
   const { firstDay, daysInMonth } = getMonthDays(viewYear, viewMonth);
   const cells: (number | null)[] = Array(firstDay).fill(null);
@@ -303,13 +386,9 @@ function MonthlyView({ viewYear, viewMonth, todayStr, selectedDate, bowelMap, co
   return (
     <View style={[styles.calCard, { backgroundColor: colors.card }]}>
       <View style={styles.monthNav}>
-        <TouchableOpacity onPress={onPrev} style={styles.navBtn}>
-          <Feather name="chevron-left" size={22} color={colors.tint} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onPrev} style={styles.navBtn}><Feather name="chevron-left" size={22} color={colors.tint} /></TouchableOpacity>
         <Text style={[styles.monthLabel, { color: colors.text }]}>{MONTHS[viewMonth]} {viewYear}</Text>
-        <TouchableOpacity onPress={onNext} style={styles.navBtn}>
-          <Feather name="chevron-right" size={22} color={colors.tint} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onNext} style={styles.navBtn}><Feather name="chevron-right" size={22} color={colors.tint} /></TouchableOpacity>
       </View>
       <View style={styles.weekdaysRow}>
         {WEEKDAYS.map((d) => <Text key={d} style={[styles.weekday, { color: colors.textSecondary }]}>{d}</Text>)}
@@ -322,6 +401,7 @@ function MonthlyView({ viewYear, viewMonth, todayStr, selectedDate, bowelMap, co
           const isToday = dateStr === todayStr;
           const bowel = bowelMap[dateStr];
           const dotColor = bowelDotColor(bowel?.color);
+          const hasPhotos = (bowel?.photos?.length ?? 0) > 0;
           return (
             <TouchableOpacity
               key={dateStr}
@@ -331,9 +411,8 @@ function MonthlyView({ viewYear, viewMonth, todayStr, selectedDate, bowelMap, co
               <Text style={[styles.dayText, { color: isSelected ? "#fff" : isToday ? colors.teal : colors.text }, isToday && { fontWeight: "700" as const }]}>
                 {day}
               </Text>
-              {bowel ? (
-                <View style={[styles.dot, { backgroundColor: dotColor }]} />
-              ) : null}
+              {bowel ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}
+              {hasPhotos && !isSelected && <View style={styles.cameraIndicator}><Feather name="camera" size={6} color={colors.placeholder} /></View>}
             </TouchableOpacity>
           );
         })}
@@ -342,7 +421,6 @@ function MonthlyView({ viewYear, viewMonth, todayStr, selectedDate, bowelMap, co
   );
 }
 
-// ── Weekly View ──
 function WeeklyView({ todayStr, bowelMap, colors, onDayTap }: any) {
   const today = new Date(todayStr + "T12:00");
   const startOfWeek = new Date(today);
@@ -380,18 +458,13 @@ function WeeklyView({ todayStr, bowelMap, colors, onDayTap }: any) {
   );
 }
 
-// ── Yearly View ──
 function YearlyView({ year, bowelMap, todayStr, colors, onYearChange, onDayTap }: any) {
   return (
     <View>
       <View style={styles.yearNav}>
-        <TouchableOpacity onPress={() => onYearChange(year - 1)} style={styles.navBtn}>
-          <Feather name="chevron-left" size={22} color={colors.tint} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onYearChange(year - 1)} style={styles.navBtn}><Feather name="chevron-left" size={22} color={colors.tint} /></TouchableOpacity>
         <Text style={[styles.monthLabel, { color: colors.text }]}>{year}</Text>
-        <TouchableOpacity onPress={() => onYearChange(year + 1)} style={styles.navBtn}>
-          <Feather name="chevron-right" size={22} color={colors.tint} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onYearChange(year + 1)} style={styles.navBtn}><Feather name="chevron-right" size={22} color={colors.tint} /></TouchableOpacity>
       </View>
       {Array.from({ length: 12 }, (_, m) => {
         const { firstDay, daysInMonth } = getMonthDays(year, m);
@@ -421,8 +494,6 @@ function YearlyView({ year, bowelMap, todayStr, colors, onYearChange, onDayTap }
   );
 }
 
-type BowelLog = { id: string; date: string; color: BowelColor; photos: string[] };
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 12 },
@@ -440,7 +511,8 @@ const styles = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap" },
   cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center" },
   dayText: { fontSize: 14 },
-  dot: { width: 5, height: 5, borderRadius: 3, marginTop: 2 },
+  dot: { width: 5, height: 5, borderRadius: 3, marginTop: 1 },
+  cameraIndicator: { position: "absolute", bottom: 2, right: 2 },
   weekStrip: { flexDirection: "row", justifyContent: "space-between" },
   weekDay: { flex: 1, alignItems: "center", padding: 8 },
   weekDayName: { fontSize: 12, fontWeight: "500" as const, marginBottom: 4 },
@@ -453,29 +525,45 @@ const styles = StyleSheet.create({
   yearCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center" },
   yearDayText: { fontSize: 9 },
   yearDot: { width: 6, height: 6, borderRadius: 3 },
+  photoStrip: { marginHorizontal: 16, marginBottom: 8 },
+  photoStripTitle: { fontSize: 12, fontWeight: "600" as const, marginBottom: 8 },
+  photoThumbWrap: { marginRight: 10, alignItems: "center" },
+  photoThumb: { width: 60, height: 60, borderRadius: 10 },
+  photoThumbDot: { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
+  photoThumbDate: { fontSize: 10, marginTop: 2 },
   summaryContainer: { paddingHorizontal: 16 },
   summaryDate: { fontSize: 15, fontWeight: "600" as const, marginBottom: 10 },
-  summaryCard: { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 12, marginBottom: 8, shadowColor: "rgba(0,0,0,0.04)", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 1 },
+  summaryCard: { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 12, marginBottom: 8 },
   summaryTitle: { fontSize: 14, fontWeight: "500" as const },
+  summarySubtitle: { fontSize: 12, marginTop: 1 },
+  thumbRow: { flexDirection: "row", gap: 4, marginRight: 8 },
+  summaryThumb: { width: 32, height: 32, borderRadius: 6 },
   bowelDot: { width: 12, height: 12, borderRadius: 6, marginRight: 8 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  bottomSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "80%" },
+  bottomSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "85%" },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 16 },
   sheetTitle: { fontSize: 18, fontWeight: "700" as const, marginBottom: 16 },
   fieldLabel: { fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.5, marginBottom: 10 },
-  radioRow: { gap: 8, marginBottom: 16 },
-  radioOption: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12 },
+  radioRow: { gap: 8, marginBottom: 12 },
+  radioOption: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12 },
   radioColorDot: { width: 14, height: 14, borderRadius: 7, marginRight: 10 },
   radioLabel: { fontSize: 15, fontWeight: "500" as const },
+  countRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 8, gap: 10, marginBottom: 16 },
+  countBtn: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  countInput: { fontSize: 24, fontWeight: "700" as const, minWidth: 50, textAlign: "center" },
+  countLabel: { fontSize: 13, flex: 1 },
   saveBtn: { padding: 14, borderRadius: 12, alignItems: "center" },
   saveText: { color: "#fff", fontSize: 15, fontWeight: "600" as const },
   cancelBtn: { padding: 14, borderRadius: 12, alignItems: "center" },
   cancelText: { fontSize: 15, fontWeight: "600" as const },
   photoAddBtn: { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, borderRadius: 12, borderWidth: 1.5, borderStyle: "dashed" },
   photoAddText: { fontSize: 14, fontWeight: "500" as const },
-  photoThumb: { width: 80, height: 80, borderRadius: 10 },
+  bigPhotoThumb: { width: 90, height: 90, borderRadius: 12 },
   photoDeleteBtn: { position: "absolute", top: 4, right: 4, backgroundColor: "rgba(0,0,0,0.6)", width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  imageViewerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", justifyContent: "center", alignItems: "center" },
+  imageViewerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center" },
   fullImage: { width: "100%", height: "80%" },
+  viewerNav: { flexDirection: "row", alignItems: "center", gap: 20, marginTop: 16 },
+  viewerNavBtn: { padding: 8 },
+  viewerCounter: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
   closeBtn: { position: "absolute", top: 60, right: 20, width: 44, height: 44, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 22, alignItems: "center", justifyContent: "center" },
 });

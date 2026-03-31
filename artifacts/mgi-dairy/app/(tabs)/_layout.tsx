@@ -20,8 +20,8 @@ function NativeTabLayout() {
         <Label>Calendar</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="triggers">
-        <Icon sf={{ default: "exclamationmark.triangle", selected: "exclamationmark.triangle.fill" }} />
-        <Label>Triggers</Label>
+        <Icon sf={{ default: "leaf", selected: "leaf.fill" }} />
+        <Label>Food</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="meds">
         <Icon sf={{ default: "pill", selected: "pill.fill" }} />
@@ -48,14 +48,8 @@ function ClassicTabLayout() {
         tabBarActiveTintColor: colors.tint,
         tabBarInactiveTintColor: colors.tabIconDefault,
         headerShown: true,
-        headerStyle: {
-          backgroundColor: colors.headerBg,
-        },
-        headerTitleStyle: {
-          color: "#FFFFFF",
-          fontWeight: "600" as const,
-          fontSize: 17,
-        },
+        headerStyle: { backgroundColor: colors.headerBg },
+        headerTitleStyle: { color: "#FFFFFF", fontWeight: "600" as const, fontSize: 17 },
         headerTintColor: "#FFFFFF",
         headerShadowVisible: false,
         tabBarStyle: {
@@ -98,9 +92,9 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="triggers"
         options={{
-          title: "Triggers",
+          title: "Food",
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="exclamationmark.triangle" tintColor={color} size={22} /> : <Feather name="alert-triangle" size={22} color={color} />,
+            isIOS ? <SymbolView name="leaf" tintColor={color} size={22} /> : <Feather name="feather" size={22} color={color} />,
         }}
       />
       <Tabs.Screen

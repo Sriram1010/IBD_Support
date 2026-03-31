@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Modal, TextInput, Alert, Platform, useColorScheme,
+  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -26,17 +27,12 @@ export default function MedsScreen() {
   const sorted = [...medications].sort((a, b) => a.name.localeCompare(b.name));
 
   const openAdd = () => {
-    setEditId(null);
-    setName("");
-    setNotes("");
-    setReminderTime("08:00");
+    setEditId(null); setName(""); setNotes(""); setReminderTime("08:00");
     setShowSheet(true);
   };
 
   const openEdit = (m: typeof medications[0]) => {
-    setEditId(m.id);
-    setName(m.name);
-    setNotes(m.notes);
+    setEditId(m.id); setName(m.name); setNotes(m.notes);
     setReminderTime(m.reminderTime || "08:00");
     setShowSheet(true);
   };
@@ -49,7 +45,7 @@ export default function MedsScreen() {
       await addMedication({ name: name.trim(), notes: notes.trim(), reminderTime, createdAt: new Date().toISOString() });
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("Reminder Set", `Reminder set for ${reminderTime} daily.\n\nNote: Enable notifications in app settings to receive alerts on device.`);
+    Alert.alert("Saved", `Reminder set for ${reminderTime} daily.\n\nEnable notifications in device settings to receive alerts.`);
     setShowSheet(false);
   };
 
@@ -66,139 +62,145 @@ export default function MedsScreen() {
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
-        <View>
-          <Text style={[styles.headerTitle, { color: colors.headerText }]}>Medications</Text>
-          <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Daily meds & supplements</Text>
-        </View>
-        <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
-          <Feather name="plus" size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Summary banner */}
-      <View style={[styles.banner, { backgroundColor: colors.teal }]}>
-        <Feather name="package" size={16} color="#fff" />
-        <Text style={styles.bannerText}>
-          {sorted.length} medication{sorted.length !== 1 ? "s" : ""} tracked
-        </Text>
-      </View>
-
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} showsVerticalScrollIndicator={false}>
-        {sorted.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Feather name="package" size={48} color={colors.placeholder} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No medications added</Text>
-            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Add your daily medications and supplements with reminders.</Text>
-            <TouchableOpacity style={[styles.emptyAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
-              <Feather name="plus" size={16} color="#fff" />
-              <Text style={styles.emptyAddText}>Add First Medication</Text>
-            </TouchableOpacity>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.headerText }]}>Medications</Text>
+            <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Daily meds & supplements</Text>
           </View>
-        ) : (
-          sorted.map((med) => (
-            <TouchableOpacity
-              key={med.id}
-              style={[styles.medCard, { backgroundColor: colors.card }]}
-              onPress={() => openEdit(med)}
-              onLongPress={() => handleDelete(med.id, med.name)}
-            >
-              <View style={[styles.medIcon, { backgroundColor: colors.sectionBg }]}>
-                <Feather name="package" size={20} color={colors.gold} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.medName, { color: colors.text }]}>{med.name}</Text>
-                {med.notes ? <Text style={[styles.medNotes, { color: colors.textSecondary }]} numberOfLines={1}>{med.notes}</Text> : null}
-              </View>
-              <View style={styles.medRight}>
-                {med.reminderTime ? (
-                  <View style={[styles.reminderChip, { backgroundColor: colors.sectionBg }]}>
-                    <Feather name="bell" size={11} color={colors.gold} />
-                    <Text style={[styles.reminderTime, { color: colors.gold }]}>{med.reminderTime}</Text>
-                  </View>
-                ) : null}
-                <View style={styles.medActions}>
-                  <TouchableOpacity onPress={() => openEdit(med)} style={[styles.editBtn, { backgroundColor: colors.sectionBg }]}>
-                    <Feather name="edit-2" size={13} color={colors.tint} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleDelete(med.id, med.name)} style={[styles.deleteBtn, { backgroundColor: "#FEE2E2" }]}>
-                    <Feather name="trash-2" size={13} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+          <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
+            <Feather name="plus" size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
 
-      <Modal visible={showSheet} animationType="slide" transparent>
-        <View style={styles.overlay}>
-          <View style={[styles.bottomSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
-            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>{editId ? "Edit Medication" : "Add Medication"}</Text>
+        <View style={[styles.banner, { backgroundColor: colors.teal }]}>
+          <Feather name="package" size={16} color="#fff" />
+          <Text style={styles.bannerText}>{sorted.length} medication{sorted.length !== 1 ? "s" : ""} tracked</Text>
+        </View>
 
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Name / Supplement</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Mesalazine 400mg, Vitamin D…"
-              placeholderTextColor={colors.placeholder}
-            />
-
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>Notes / Dosage</Text>
-            <View style={[styles.notesInputRow, { backgroundColor: colors.inputBg }]}>
-              <TextInput
-                style={[styles.notesInput, { color: colors.text }]}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="e.g. Take with food, 1 tablet twice daily…"
-                placeholderTextColor={colors.placeholder}
-                multiline
-                numberOfLines={3}
-              />
+        <ScrollView
+          contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {sorted.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Feather name="package" size={48} color={colors.placeholder} />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No medications added</Text>
+              <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Add your daily medications and supplements with reminders.</Text>
+              <TouchableOpacity style={[styles.emptyAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
+                <Feather name="plus" size={16} color="#fff" />
+                <Text style={styles.emptyAddText}>Add First Medication</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            sorted.map((med) => (
               <TouchableOpacity
-                style={[styles.micBtn, { backgroundColor: colors.borderLight }]}
-                onPress={() => Alert.alert("Voice Input", "Tap the keyboard and type your notes, or use your device's dictation feature.")}
+                key={med.id}
+                style={[styles.medCard, { backgroundColor: colors.card }]}
+                onPress={() => openEdit(med)}
+                onLongPress={() => handleDelete(med.id, med.name)}
               >
-                <Feather name="mic" size={18} color={colors.textSecondary} />
+                <View style={[styles.medIcon, { backgroundColor: colors.sectionBg }]}>
+                  <Feather name="package" size={20} color={colors.gold} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.medName, { color: colors.text }]}>{med.name}</Text>
+                  {med.notes ? <Text style={[styles.medNotes, { color: colors.textSecondary }]} numberOfLines={1}>{med.notes}</Text> : null}
+                </View>
+                <View style={styles.medRight}>
+                  {med.reminderTime ? (
+                    <View style={[styles.reminderChip, { backgroundColor: colors.sectionBg }]}>
+                      <Feather name="bell" size={11} color={colors.gold} />
+                      <Text style={[styles.reminderTime, { color: colors.gold }]}>{med.reminderTime}</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.medActions}>
+                    <TouchableOpacity onPress={() => openEdit(med)} style={[styles.editBtn, { backgroundColor: colors.sectionBg }]}>
+                      <Feather name="edit-2" size={13} color={colors.tint} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleDelete(med.id, med.name)} style={[styles.deleteBtn, { backgroundColor: "#FEE2E2" }]}>
+                      <Feather name="trash-2" size={13} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </TouchableOpacity>
-            </View>
+            ))
+          )}
+        </ScrollView>
 
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>Daily Reminder Time</Text>
-            <View style={[styles.reminderRow, { backgroundColor: colors.inputBg }]}>
-              <Feather name="bell" size={16} color={colors.gold} style={{ marginLeft: 14 }} />
-              <TextInput
-                style={[styles.reminderInput, { color: colors.text }]}
-                value={reminderTime}
-                onChangeText={setReminderTime}
-                placeholder="HH:MM"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="numbers-and-punctuation"
-              />
-              <Text style={[styles.reminderHint, { color: colors.placeholder }]}>24h format</Text>
-            </View>
+        <Modal visible={showSheet} animationType="slide" transparent>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={styles.overlay}>
+              <TouchableWithoutFeedback onPress={() => setShowSheet(false)}>
+                <View style={StyleSheet.absoluteFill} />
+              </TouchableWithoutFeedback>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={[styles.bottomSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
+                  <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+                  <Text style={[styles.sheetTitle, { color: colors.text }]}>{editId ? "Edit Medication" : "Add Medication"}</Text>
 
-            <View style={[styles.alarmNote, { backgroundColor: colors.sectionBg }]}>
-              <Feather name="info" size={14} color={colors.gold} />
-              <Text style={[styles.alarmNoteText, { color: colors.textSecondary }]}>
-                Enable notifications in device settings to receive daily reminders.
-              </Text>
-            </View>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Name / Supplement</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
+                    value={name} onChangeText={setName}
+                    placeholder="e.g. Mesalazine 400mg, Vitamin D…"
+                    placeholderTextColor={colors.placeholder}
+                    autoFocus
+                  />
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSheet(false)}>
-                <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSave}>
-                <Text style={styles.saveText}>Save</Text>
-              </TouchableOpacity>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>Notes / Dosage</Text>
+                  <View style={[styles.notesInputRow, { backgroundColor: colors.inputBg }]}>
+                    <TextInput
+                      style={[styles.notesInput, { color: colors.text }]}
+                      value={notes} onChangeText={setNotes}
+                      placeholder="e.g. Take with food, 1 tablet twice daily…"
+                      placeholderTextColor={colors.placeholder}
+                      multiline numberOfLines={3}
+                    />
+                    <TouchableOpacity
+                      style={[styles.micBtn, { backgroundColor: colors.borderLight }]}
+                      onPress={() => Alert.alert("Voice Input", "Use your device's dictation feature in the keyboard.")}
+                    >
+                      <Feather name="mic" size={18} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>Daily Reminder Time</Text>
+                  <View style={[styles.reminderRow, { backgroundColor: colors.inputBg }]}>
+                    <Feather name="bell" size={16} color={colors.gold} style={{ marginLeft: 14 }} />
+                    <TextInput
+                      style={[styles.reminderInput, { color: colors.text }]}
+                      value={reminderTime} onChangeText={setReminderTime}
+                      placeholder="HH:MM" placeholderTextColor={colors.placeholder}
+                      keyboardType="numbers-and-punctuation"
+                    />
+                    <Text style={[styles.reminderHint, { color: colors.placeholder }]}>24h format</Text>
+                  </View>
+
+                  <View style={[styles.alarmNote, { backgroundColor: colors.sectionBg }]}>
+                    <Feather name="info" size={14} color={colors.gold} />
+                    <Text style={[styles.alarmNoteText, { color: colors.textSecondary }]}>
+                      Enable notifications in device settings to receive daily reminders.
+                    </Text>
+                  </View>
+
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSheet(false)}>
+                      <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSave}>
+                      <Text style={styles.saveText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
             </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
