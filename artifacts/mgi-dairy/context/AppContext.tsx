@@ -55,6 +55,7 @@ export interface Medication {
   name: string;
   notes: string;
   reminderTime: string;
+  reminderDays: string[];
   createdAt: string;
 }
 

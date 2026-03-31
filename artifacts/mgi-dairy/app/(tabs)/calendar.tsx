@@ -134,8 +134,8 @@ export default function CalendarScreen() {
     setShowImageViewer(photos[startIdx]);
   };
 
-  const topPad = Platform.OS === "web" ? 67 + insets.top : 0;
-  const tabBarHeight = Platform.OS === "web" ? 84 : 83;
+  const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
+  const tabBarHeight = Platform.OS === "web" ? 84 : 64;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); } else setViewMonth((m) => m - 1); };
@@ -219,7 +219,7 @@ export default function CalendarScreen() {
                 <View style={[styles.bowelDot, { backgroundColor: bowelDotColor(bowelMap[selectedDate].color) }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.summaryTitle, { color: colors.text }]}>
-                    {bowelMap[selectedDate].color.charAt(0).toUpperCase() + bowelMap[selectedDate].color.slice(1)} bowel log
+                    {bowelMap[selectedDate].color === "green" ? "Stool - Normal" : bowelMap[selectedDate].color === "yellow" ? "Stool - Moderate" : "Stool - Severe"}
                   </Text>
                   {(bowelMap[selectedDate].count ?? 0) > 0 && (
                     <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>

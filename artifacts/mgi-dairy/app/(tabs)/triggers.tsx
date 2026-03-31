@@ -80,8 +80,8 @@ export default function FoodScreen() {
     ]);
   };
 
-  const topPad = Platform.OS === "web" ? 67 + insets.top : 0;
-  const tabBarHeight = Platform.OS === "web" ? 84 : 83;
+  const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
+  const tabBarHeight = Platform.OS === "web" ? 84 : 64;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   return (
@@ -152,7 +152,7 @@ export default function FoodScreen() {
                             }}
                           >
                             <Feather name="image" size={12} color={colors.teal} />
-                            <Text style={[styles.checkStoolText, { color: colors.teal }]}>Check Stool History</Text>
+                            <Text style={[styles.checkStoolText, { color: colors.teal }]}>Stool</Text>
                           </TouchableOpacity>
                         )}
                       </View>

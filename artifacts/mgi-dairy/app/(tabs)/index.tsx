@@ -16,6 +16,10 @@ import {
   mlToGallons, parseWaterInput, calcSleepHours, calcSleepHoursNum,
   getProgressColor,
 } from "@/hooks/useDateString";
+import {
+  WheelPicker, TimePicker,
+  EXERCISE_STEPS, findExerciseIdx,
+} from "@/components/WheelPicker";
 
 const GAL_PRESETS = [
   { label: "0.5 gal", ml: 1893 },
@@ -32,10 +36,7 @@ function KbSheet({ visible, onClose, title, children, insets }: {
 }) {
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={shStyles.overlay}>
           <TouchableWithoutFeedback onPress={onClose}>
             <View style={StyleSheet.absoluteFill} />
@@ -101,10 +102,10 @@ export default function DiaryScreen() {
   const [wakeTime, setWakeTime] = useState(todaySleep?.wakeTime ?? "07:00");
   const [sleepNotes, setSleepNotes] = useState(todaySleep?.notes ?? "");
 
-  const [exRunning, setExRunning] = useState(String(todayExercise?.running ?? 0));
-  const [exWalking, setExWalking] = useState(String(todayExercise?.walking ?? 0));
-  const [exStrength, setExStrength] = useState(String(todayExercise?.strengthTraining ?? 0));
-  const [exCardio, setExCardio] = useState(String(todayExercise?.cardio ?? 0));
+  const [exRunningIdx, setExRunningIdx] = useState(0);
+  const [exWalkingIdx, setExWalkingIdx] = useState(0);
+  const [exStrengthIdx, setExStrengthIdx] = useState(0);
+  const [exCardioIdx, setExCardioIdx] = useState(0);
 
   const [goalInput, setGoalInput] = useState(mlToGallons(waterGoalMl));
   const [goalUnit, setGoalUnit] = useState<"gal" | "ml">("gal");
@@ -112,16 +113,22 @@ export default function DiaryScreen() {
   const [exerciseGoalInput, setExerciseGoalInput] = useState(String(exerciseGoalMinutes));
 
   const waterPct = Math.min((todayWaterTotal / waterGoalMl) * 100, 100);
-  const tabBarHeight = Platform.OS === "web" ? 84 : 83;
+  const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
+  const tabBarHeight = Platform.OS === "web" ? 84 : 64;
   const bottomPad = insets.bottom + tabBarHeight + 16;
-  const topPad = Platform.OS === "web" ? 67 + insets.top : 0;
 
   const sleepHoursToday = calcSleepHoursNum(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
   const sleepPct = Math.min((sleepHoursToday / sleepGoalHours) * 100, 100);
 
-  const totalExerciseMin = (todayExercise?.running ?? 0) + (todayExercise?.walking ?? 0) + (todayExercise?.strengthTraining ?? 0) + (todayExercise?.cardio ?? 0);
+  const exMinRunning = parseInt(EXERCISE_STEPS[exRunningIdx], 10);
+  const exMinWalking = parseInt(EXERCISE_STEPS[exWalkingIdx], 10);
+  const exMinStrength = parseInt(EXERCISE_STEPS[exStrengthIdx], 10);
+  const exMinCardio = parseInt(EXERCISE_STEPS[exCardioIdx], 10);
+  const exTotalSheet = exMinRunning + exMinWalking + exMinStrength + exMinCardio;
+
+  const totalExerciseMin = (todayExercise?.running ?? 0) + (todayExercise?.walking ?? 0) +
+    (todayExercise?.strengthTraining ?? 0) + (todayExercise?.cardio ?? 0);
   const exercisePct = Math.min((totalExerciseMin / exerciseGoalMinutes) * 100, 100);
-  const exTotal = (parseFloat(exRunning) || 0) + (parseFloat(exWalking) || 0) + (parseFloat(exStrength) || 0) + (parseFloat(exCardio) || 0);
 
   const goalDisplayStr = waterUnit === "gal" ? `${mlToGallons(waterGoalMl)} gal` : `${waterGoalMl} ml`;
   const waterAmountDisplay = waterUnit === "ml" ? `${todayWaterTotal} ml` : `${mlToGallons(todayWaterTotal)} gal`;
@@ -160,7 +167,8 @@ export default function DiaryScreen() {
   const handleManualWater = async () => {
     const amount = parseFloat(waterManual);
     if (isNaN(amount) || amount <= 0) { Alert.alert("Invalid", "Enter a number > 0."); return; }
-    await addWaterEntry({ date: today, amountMl: Math.round(amount) });
+    const ml = waterUnit === "gal" ? Math.round(amount * 3785.41) : Math.round(amount);
+    await addWaterEntry({ date: today, amountMl: ml });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setWaterManual(""); setShowWaterModal(false);
   };
@@ -173,7 +181,13 @@ export default function DiaryScreen() {
   };
 
   const handleSaveExercise = async () => {
-    await saveExerciseLog({ date: today, running: parseFloat(exRunning) || 0, walking: parseFloat(exWalking) || 0, strengthTraining: parseFloat(exStrength) || 0, cardio: parseFloat(exCardio) || 0 });
+    await saveExerciseLog({
+      date: today,
+      running: exMinRunning,
+      walking: exMinWalking,
+      strengthTraining: exMinStrength,
+      cardio: exMinCardio,
+    });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowExerciseSheet(false);
   };
@@ -204,11 +218,18 @@ export default function DiaryScreen() {
   };
 
   const openExercise = () => {
-    setExRunning(String(todayExercise?.running ?? 0));
-    setExWalking(String(todayExercise?.walking ?? 0));
-    setExStrength(String(todayExercise?.strengthTraining ?? 0));
-    setExCardio(String(todayExercise?.cardio ?? 0));
+    setExRunningIdx(findExerciseIdx(todayExercise?.running ?? 0));
+    setExWalkingIdx(findExerciseIdx(todayExercise?.walking ?? 0));
+    setExStrengthIdx(findExerciseIdx(todayExercise?.strengthTraining ?? 0));
+    setExCardioIdx(findExerciseIdx(todayExercise?.cardio ?? 0));
     setShowExerciseSheet(true);
+  };
+
+  const openSleep = () => {
+    setBedtime(todaySleep?.bedtime ?? "22:00");
+    setWakeTime(todaySleep?.wakeTime ?? "07:00");
+    setSleepNotes(todaySleep?.notes ?? "");
+    setShowSleepSheet(true);
   };
 
   const totalHoursStr = calcSleepHours(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
@@ -227,7 +248,6 @@ export default function DiaryScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-
           {/* FOOD LOG */}
           <SectionCard title="Food Log" colors={colors} onAdd={() => { setShowMealModal(true); setMealTime(formatTimeFromDate(new Date())); }}>
             {todayMeals.length === 0 ? <EmptyState icon="coffee" text="No food logged today" colors={colors} /> : (
@@ -238,14 +258,8 @@ export default function DiaryScreen() {
                   <Text style={[styles.thPhoto, { color: colors.textSecondary }]}>Photo</Text>
                 </View>
                 {todayMeals.map((meal) => (
-                  <TouchableOpacity
-                    key={meal.id}
-                    style={[styles.tableRow, { borderBottomColor: colors.borderLight }]}
-                    onLongPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      Alert.alert("Delete?", meal.foodDetails, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deleteMeal(meal.id) }]);
-                    }}
-                  >
+                  <TouchableOpacity key={meal.id} style={[styles.tableRow, { borderBottomColor: colors.borderLight }]}
+                    onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); Alert.alert("Delete?", meal.foodDetails, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deleteMeal(meal.id) }]); }}>
                     <Text style={[styles.tdTime, { color: colors.text }]}>{meal.time}</Text>
                     <Text style={[styles.tdFood, { color: colors.text }]} numberOfLines={2}>{meal.foodDetails}</Text>
                     <View style={styles.tdPhoto}>
@@ -254,9 +268,7 @@ export default function DiaryScreen() {
                           <Image source={{ uri: meal.imagePath }} style={styles.thumbnail} />
                         </TouchableOpacity>
                       ) : (
-                        <View style={[styles.noPhoto, { backgroundColor: colors.borderLight }]}>
-                          <Feather name="image" size={14} color={colors.placeholder} />
-                        </View>
+                        <View style={[styles.noPhoto, { backgroundColor: colors.borderLight }]}><Feather name="image" size={14} color={colors.placeholder} /></View>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -288,10 +300,8 @@ export default function DiaryScreen() {
             </View>
             <View style={[styles.amountCard, { backgroundColor: colors.tealLight }]}>
               <Text style={[styles.amountBig, { color: colors.teal }]}>{waterAmountDisplay}</Text>
-              <TouchableOpacity
-                style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
-                onPress={() => { setGoalInput(mlToGallons(waterGoalMl)); setGoalUnit("gal"); setShowGoalModal(true); }}
-              >
+              <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
+                onPress={() => { setGoalInput(mlToGallons(waterGoalMl)); setGoalUnit("gal"); setShowGoalModal(true); }}>
                 <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {goalDisplayStr}</Text>
                 <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
               </TouchableOpacity>
@@ -301,9 +311,9 @@ export default function DiaryScreen() {
           </View>
 
           {/* SLEEP */}
-          <SectionCard title="Sleep" colors={colors} onAdd={() => { setBedtime(todaySleep?.bedtime ?? "22:00"); setWakeTime(todaySleep?.wakeTime ?? "07:00"); setSleepNotes(todaySleep?.notes ?? ""); setShowSleepSheet(true); }}>
+          <SectionCard title="Sleep" colors={colors} onAdd={openSleep}>
             {todaySleep ? (
-              <TouchableOpacity onPress={() => { setBedtime(todaySleep.bedtime); setWakeTime(todaySleep.wakeTime); setSleepNotes(todaySleep.notes); setShowSleepSheet(true); }}>
+              <TouchableOpacity onPress={openSleep}>
                 <View style={styles.sleepRow}>
                   <SleepStat label="Bedtime" value={todaySleep.bedtime} colors={colors} />
                   <SleepStat label="Wake" value={todaySleep.wakeTime} colors={colors} />
@@ -311,10 +321,8 @@ export default function DiaryScreen() {
                 </View>
                 <View style={[styles.amountCard, { backgroundColor: colors.sectionBg, marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
                   <Text style={[styles.amountBig, { color: colors.gold, fontSize: 24 }]}>{sleepHoursToday}h</Text>
-                  <TouchableOpacity
-                    style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
-                    onPress={(e) => { e.stopPropagation(); setSleepGoalInput(String(sleepGoalHours)); setShowSleepGoalModal(true); }}
-                  >
+                  <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
+                    onPress={(e) => { e.stopPropagation?.(); setSleepGoalInput(String(sleepGoalHours)); setShowSleepGoalModal(true); }}>
                     <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {sleepGoalHours}h</Text>
                     <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
                   </TouchableOpacity>
@@ -323,12 +331,10 @@ export default function DiaryScreen() {
                 <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>{Math.round(sleepPct)}% of sleep goal</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={() => setShowSleepSheet(true)}>
+              <TouchableOpacity onPress={openSleep}>
                 <EmptyState icon="moon" text="Tap to log your sleep" colors={colors} />
-                <TouchableOpacity
-                  style={[styles.goalChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1, alignSelf: "flex-end", marginTop: 8 }]}
-                  onPress={() => { setSleepGoalInput(String(sleepGoalHours)); setShowSleepGoalModal(true); }}
-                >
+                <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1, alignSelf: "flex-end", marginTop: 8 }]}
+                  onPress={() => { setSleepGoalInput(String(sleepGoalHours)); setShowSleepGoalModal(true); }}>
                   <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {sleepGoalHours}h</Text>
                   <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
                 </TouchableOpacity>
@@ -348,10 +354,8 @@ export default function DiaryScreen() {
                 </View>
                 <View style={[styles.amountCard, { backgroundColor: colors.sectionBg, marginTop: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
                   <Text style={[styles.amountBig, { color: colors.gold, fontSize: 24 }]}>{totalExerciseMin} min</Text>
-                  <TouchableOpacity
-                    style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
-                    onPress={(e) => { e.stopPropagation(); setExerciseGoalInput(String(exerciseGoalMinutes)); setShowExerciseGoalModal(true); }}
-                  >
+                  <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
+                    onPress={(e) => { e.stopPropagation?.(); setExerciseGoalInput(String(exerciseGoalMinutes)); setShowExerciseGoalModal(true); }}>
                     <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {exerciseGoalMinutes}min</Text>
                     <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
                   </TouchableOpacity>
@@ -362,10 +366,8 @@ export default function DiaryScreen() {
             ) : (
               <TouchableOpacity onPress={openExercise}>
                 <EmptyState icon="trending-up" text="Tap to log exercise" colors={colors} />
-                <TouchableOpacity
-                  style={[styles.goalChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1, alignSelf: "flex-end", marginTop: 8 }]}
-                  onPress={() => { setExerciseGoalInput(String(exerciseGoalMinutes)); setShowExerciseGoalModal(true); }}
-                >
+                <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1, alignSelf: "flex-end", marginTop: 8 }]}
+                  onPress={() => { setExerciseGoalInput(String(exerciseGoalMinutes)); setShowExerciseGoalModal(true); }}>
                   <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {exerciseGoalMinutes}min</Text>
                   <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
                 </TouchableOpacity>
@@ -416,10 +418,17 @@ export default function DiaryScreen() {
             <Text style={styles.saveText}>Add</Text>
           </TouchableOpacity>
           <View style={[styles.dividerRow, { borderColor: colors.border }]}>
-            <Text style={[styles.dividerText, { color: colors.placeholder }]}>or enter manually (ml)</Text>
+            <Text style={[styles.dividerText, { color: colors.placeholder }]}>or enter manually ({waterUnit})</Text>
           </View>
           <View style={styles.manualRow}>
-            <TextInput style={[styles.manualInput, { backgroundColor: colors.inputBg, color: colors.text }]} value={waterManual} onChangeText={setWaterManual} placeholder="Amount in ml" placeholderTextColor={colors.placeholder} keyboardType="numeric" />
+            <TextInput
+              style={[styles.manualInput, { backgroundColor: colors.inputBg, color: colors.text }]}
+              value={waterManual}
+              onChangeText={setWaterManual}
+              placeholder={`Amount in ${waterUnit}`}
+              placeholderTextColor={colors.placeholder}
+              keyboardType="decimal-pad"
+            />
             <TouchableOpacity style={[styles.manualAddBtn, { backgroundColor: colors.teal }]} onPress={handleManualWater}>
               <Feather name="plus" size={18} color="#fff" />
             </TouchableOpacity>
@@ -459,33 +468,50 @@ export default function DiaryScreen() {
           </View>
         </KbSheet>
 
-        {/* SLEEP SHEET */}
-        <KbSheet visible={showSleepSheet} onClose={() => setShowSleepSheet(false)} title="Sleep Log" insets={insets}>
-          <View style={styles.sleepTimeRow}>
-            <View style={styles.sleepTimeItem}>
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Bedtime</Text>
-              <TextInput style={[styles.sleepTimeInput, { backgroundColor: colors.inputBg, color: colors.text }]} value={bedtime} onChangeText={setBedtime} placeholder="22:00" placeholderTextColor={colors.placeholder} keyboardType="numbers-and-punctuation" />
+        {/* SLEEP SHEET with drum-roll time pickers */}
+        <Modal visible={showSleepSheet} animationType="slide" transparent>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={shStyles.overlay}>
+              <TouchableWithoutFeedback onPress={() => setShowSleepSheet(false)}>
+                <View style={StyleSheet.absoluteFill} />
+              </TouchableWithoutFeedback>
+              <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16, backgroundColor: colors.surface }]}>
+                <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
+                <Text style={[shStyles.title, { color: colors.text }]}>Sleep Log</Text>
+                <View style={styles.sleepPickerSection}>
+                  <Text style={[styles.sleepPickerLabel, { color: colors.textSecondary }]}>Bedtime</Text>
+                  <View style={[styles.timePickerBox, { backgroundColor: colors.sectionBg, borderRadius: 14 }]}>
+                    <TimePicker value={bedtime} onChange={setBedtime} colors={colors} />
+                  </View>
+                </View>
+                <View style={[styles.sleepPickerSection, { marginTop: 12 }]}>
+                  <Text style={[styles.sleepPickerLabel, { color: colors.textSecondary }]}>Wake Time</Text>
+                  <View style={[styles.timePickerBox, { backgroundColor: colors.sectionBg, borderRadius: 14 }]}>
+                    <TimePicker value={wakeTime} onChange={setWakeTime} colors={colors} />
+                  </View>
+                </View>
+                <View style={[styles.sleepTotalBox, { backgroundColor: colors.tealLight, marginTop: 12 }]}>
+                  <Feather name="moon" size={18} color={colors.gold} />
+                  <Text style={[styles.sleepTotalText, { color: colors.gold }]}>Total: {calcSleepHours(bedtime, wakeTime)}</Text>
+                </View>
+                <TextInput
+                  style={[styles.sleepNotesInput, { backgroundColor: colors.inputBg, color: colors.text, marginTop: 10 }]}
+                  value={sleepNotes} onChangeText={setSleepNotes}
+                  placeholder="Optional notes…" placeholderTextColor={colors.placeholder}
+                  multiline numberOfLines={2}
+                />
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSleepSheet(false)}>
+                    <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleep}>
+                    <Text style={styles.saveText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-            <View style={styles.sleepArrow}><Feather name="arrow-right" size={20} color={colors.placeholder} /></View>
-            <View style={styles.sleepTimeItem}>
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Wake time</Text>
-              <TextInput style={[styles.sleepTimeInput, { backgroundColor: colors.inputBg, color: colors.text }]} value={wakeTime} onChangeText={setWakeTime} placeholder="07:00" placeholderTextColor={colors.placeholder} keyboardType="numbers-and-punctuation" />
-            </View>
-          </View>
-          <View style={[styles.sleepTotalBox, { backgroundColor: colors.sectionBg }]}>
-            <Feather name="moon" size={18} color={colors.gold} />
-            <Text style={[styles.sleepTotalText, { color: colors.gold }]}>Total: {calcSleepHours(bedtime, wakeTime)}</Text>
-          </View>
-          <TextInput style={[styles.sleepNotesInput, { backgroundColor: colors.inputBg, color: colors.text }]} value={sleepNotes} onChangeText={setSleepNotes} placeholder="Optional notes…" placeholderTextColor={colors.placeholder} multiline numberOfLines={3} />
-          <View style={styles.modalButtons}>
-            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSleepSheet(false)}>
-              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleep}>
-              <Text style={styles.saveText}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </KbSheet>
+          </KeyboardAvoidingView>
+        </Modal>
 
         {/* SLEEP GOAL MODAL */}
         <KbSheet visible={showSleepGoalModal} onClose={() => setShowSleepGoalModal(false)} title="Set Sleep Goal" insets={insets}>
@@ -508,26 +534,37 @@ export default function DiaryScreen() {
           </View>
         </KbSheet>
 
-        {/* EXERCISE SHEET */}
-        <KbSheet visible={showExerciseSheet} onClose={() => setShowExerciseSheet(false)} title="Log Exercise" insets={insets}>
-          <Text style={[styles.hint, { color: colors.textSecondary }]}>Enter duration in minutes for each activity</Text>
-          <ExerciseInput label="Running" icon="activity" value={exRunning} onChange={setExRunning} colors={colors} />
-          <ExerciseInput label="Walking" icon="navigation" value={exWalking} onChange={setExWalking} colors={colors} />
-          <ExerciseInput label="Strength Training" icon="zap" value={exStrength} onChange={setExStrength} colors={colors} />
-          <ExerciseInput label="Cardio" icon="heart" value={exCardio} onChange={setExCardio} colors={colors} />
-          <View style={[styles.exTotalRow, { backgroundColor: colors.sectionBg }]}>
-            <Text style={[styles.exTotalLabel, { color: colors.textSecondary }]}>Total Active Time</Text>
-            <Text style={[styles.exTotalValue, { color: colors.gold }]}>{exTotal} min</Text>
+        {/* EXERCISE SHEET with drum-roll dials */}
+        <Modal visible={showExerciseSheet} animationType="slide" transparent>
+          <View style={shStyles.overlay}>
+            <TouchableWithoutFeedback onPress={() => setShowExerciseSheet(false)}>
+              <View style={StyleSheet.absoluteFill} />
+            </TouchableWithoutFeedback>
+            <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16, backgroundColor: colors.surface }]}>
+              <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
+              <Text style={[shStyles.title, { color: colors.text }]}>Log Exercise</Text>
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>Scroll each dial to select duration (minutes)</Text>
+              <View style={styles.exerciseDialGrid}>
+                <ExerciseDial icon="activity" label="Running" idx={exRunningIdx} onChange={setExRunningIdx} colors={colors} />
+                <ExerciseDial icon="navigation" label="Walking" idx={exWalkingIdx} onChange={setExWalkingIdx} colors={colors} />
+                <ExerciseDial icon="zap" label="Strength" idx={exStrengthIdx} onChange={setExStrengthIdx} colors={colors} />
+                <ExerciseDial icon="heart" label="Cardio" idx={exCardioIdx} onChange={setExCardioIdx} colors={colors} />
+              </View>
+              <View style={[styles.exTotalRow, { backgroundColor: colors.sectionBg }]}>
+                <Text style={[styles.exTotalLabel, { color: colors.textSecondary }]}>Total Active Time</Text>
+                <Text style={[styles.exTotalValue, { color: colors.gold }]}>{exTotalSheet} min</Text>
+              </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseSheet(false)}>
+                  <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExercise}>
+                  <Text style={styles.saveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-          <View style={styles.modalButtons}>
-            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseSheet(false)}>
-              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExercise}>
-              <Text style={styles.saveText}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </KbSheet>
+        </Modal>
 
         {/* EXERCISE GOAL MODAL */}
         <KbSheet visible={showExerciseGoalModal} onClose={() => setShowExerciseGoalModal(false)} title="Set Exercise Goal" insets={insets}>
@@ -615,17 +652,19 @@ function ExerciseTile({ icon, label, value, colors }: { icon: string; label: str
   );
 }
 
-function ExerciseInput({ label, icon, value, onChange, colors }: { label: string; icon: string; value: string; onChange: (v: string) => void; colors: typeof Colors.light }) {
+function ExerciseDial({ icon, label, idx, onChange, colors }: { icon: string; label: string; idx: number; onChange: (i: number) => void; colors: any }) {
   return (
-    <View style={[styles.exInputRow, { borderBottomColor: colors.borderLight }]}>
-      <View style={[styles.exInputIcon, { backgroundColor: colors.sectionBg }]}>
-        <Feather name={icon as any} size={16} color={colors.gold} />
-      </View>
-      <Text style={[styles.exInputLabel, { color: colors.text }]}>{label}</Text>
-      <View style={[styles.exInputBox, { backgroundColor: colors.inputBg }]}>
-        <TextInput style={[styles.exInput, { color: colors.text }]} value={value} onChangeText={onChange} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.placeholder} selectTextOnFocus />
-        <Text style={[styles.exInputUnit, { color: colors.textSecondary }]}>min</Text>
-      </View>
+    <View style={[styles.exerciseDialItem, { backgroundColor: colors.sectionBg }]}>
+      <Feather name={icon as any} size={18} color={colors.gold} style={{ marginBottom: 2 }} />
+      <Text style={[styles.exDialLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <WheelPicker
+        items={EXERCISE_STEPS}
+        initialIndex={idx}
+        onChange={(i) => onChange(i)}
+        width={72}
+        colors={colors}
+      />
+      <Text style={[styles.exDialUnit, { color: colors.textSecondary }]}>min</Text>
     </View>
   );
 }
@@ -670,10 +709,23 @@ const styles = StyleSheet.create({
   sleepStat: { alignItems: "center", flex: 1 },
   sleepStatLabel: { fontSize: 11, marginBottom: 4 },
   sleepStatValue: { fontSize: 18, fontWeight: "600" as const },
+  sleepPickerSection: {},
+  sleepPickerLabel: { fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.5, marginBottom: 6 },
+  timePickerBox: { paddingVertical: 8, paddingHorizontal: 4 },
+  sleepTotalBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
+  sleepTotalText: { fontSize: 16, fontWeight: "600" as const },
+  sleepNotesInput: { borderRadius: 10, padding: 12, fontSize: 14, minHeight: 60, textAlignVertical: "top" },
   exerciseGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
   exTile: { width: "48%", padding: 12, borderRadius: 12, alignItems: "center" },
   exTileValue: { fontSize: 16, fontWeight: "700" as const, marginBottom: 2 },
   exTileLabel: { fontSize: 11 },
+  exerciseDialGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 12 },
+  exerciseDialItem: { width: "48%", borderRadius: 14, paddingVertical: 10, paddingHorizontal: 8, alignItems: "center" },
+  exDialLabel: { fontSize: 11, fontWeight: "600" as const, marginBottom: 4 },
+  exDialUnit: { fontSize: 11, marginTop: 2 },
+  exTotalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 12, marginTop: 4, borderRadius: 10 },
+  exTotalLabel: { fontSize: 14 },
+  exTotalValue: { fontSize: 18, fontWeight: "700" as const },
   timeRow: { flexDirection: "row", alignItems: "center", height: 48 },
   timeInput: { flex: 1, paddingHorizontal: 12, fontSize: 16 },
   foodInputRow: { flexDirection: "row", alignItems: "flex-start", minHeight: 80, padding: 12 },
@@ -699,23 +751,6 @@ const styles = StyleSheet.create({
   presetsRow: { flexDirection: "row", gap: 8 },
   presetChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   presetChipText: { fontSize: 13, fontWeight: "500" as const },
-  sleepTimeRow: { flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 8 },
-  sleepTimeItem: { flex: 1 },
-  sleepTimeInput: { height: 48, borderRadius: 10, paddingHorizontal: 14, fontSize: 18, fontWeight: "600" as const },
-  sleepArrow: { alignItems: "center", paddingTop: 22 },
-  sleepTotalBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, marginBottom: 12, borderRadius: 10 },
-  sleepTotalText: { fontSize: 16, fontWeight: "600" as const },
-  sleepNotesInput: { borderRadius: 10, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: "top" },
-  fieldLabel: { fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.5, marginBottom: 8 },
-  exInputRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 0.5, gap: 10 },
-  exInputIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  exInputLabel: { flex: 1, fontSize: 15 },
-  exInputBox: { flexDirection: "row", alignItems: "center", borderRadius: 8, paddingHorizontal: 10, height: 40 },
-  exInput: { fontSize: 16, fontWeight: "600" as const, minWidth: 36, textAlign: "right" },
-  exInputUnit: { fontSize: 13, marginLeft: 4 },
-  exTotalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 12, marginTop: 12, borderRadius: 10 },
-  exTotalLabel: { fontSize: 14 },
-  exTotalValue: { fontSize: 18, fontWeight: "700" as const },
   imageViewerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", justifyContent: "center", alignItems: "center" },
   fullImage: { width: "100%", height: "80%" },
   closeBtn: { position: "absolute", top: 60, right: 20, width: 44, height: 44, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 22, alignItems: "center", justifyContent: "center" },
