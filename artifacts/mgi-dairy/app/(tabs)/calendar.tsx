@@ -135,7 +135,7 @@ export default function CalendarScreen() {
   };
 
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
-  const tabBarHeight = Platform.OS === "web" ? 84 : 64;
+  const tabBarHeight = Platform.OS === "web" ? 66 : 54;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); } else setViewMonth((m) => m - 1); };

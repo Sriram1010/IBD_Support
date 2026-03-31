@@ -16,10 +16,7 @@ import {
   mlToGallons, parseWaterInput, calcSleepHours, calcSleepHoursNum,
   getProgressColor,
 } from "@/hooks/useDateString";
-import {
-  WheelPicker, TimePicker,
-  EXERCISE_STEPS, findExerciseIdx,
-} from "@/components/WheelPicker";
+import { SimpleTimeInput } from "@/components/WheelPicker";
 
 const GAL_PRESETS = [
   { label: "0.5 gal", ml: 1893 },
@@ -102,10 +99,10 @@ export default function DiaryScreen() {
   const [wakeTime, setWakeTime] = useState(todaySleep?.wakeTime ?? "07:00");
   const [sleepNotes, setSleepNotes] = useState(todaySleep?.notes ?? "");
 
-  const [exRunningIdx, setExRunningIdx] = useState(0);
-  const [exWalkingIdx, setExWalkingIdx] = useState(0);
-  const [exStrengthIdx, setExStrengthIdx] = useState(0);
-  const [exCardioIdx, setExCardioIdx] = useState(0);
+  const [exRunning, setExRunning] = useState("0");
+  const [exWalking, setExWalking] = useState("0");
+  const [exStrength, setExStrength] = useState("0");
+  const [exCardio, setExCardio] = useState("0");
 
   const [goalInput, setGoalInput] = useState(mlToGallons(waterGoalMl));
   const [goalUnit, setGoalUnit] = useState<"gal" | "ml">("gal");
@@ -114,16 +111,16 @@ export default function DiaryScreen() {
 
   const waterPct = Math.min((todayWaterTotal / waterGoalMl) * 100, 100);
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
-  const tabBarHeight = Platform.OS === "web" ? 84 : 64;
+  const tabBarHeight = Platform.OS === "web" ? 66 : 54;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   const sleepHoursToday = calcSleepHoursNum(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
   const sleepPct = Math.min((sleepHoursToday / sleepGoalHours) * 100, 100);
 
-  const exMinRunning = parseInt(EXERCISE_STEPS[exRunningIdx], 10);
-  const exMinWalking = parseInt(EXERCISE_STEPS[exWalkingIdx], 10);
-  const exMinStrength = parseInt(EXERCISE_STEPS[exStrengthIdx], 10);
-  const exMinCardio = parseInt(EXERCISE_STEPS[exCardioIdx], 10);
+  const exMinRunning = parseInt(exRunning || "0", 10);
+  const exMinWalking = parseInt(exWalking || "0", 10);
+  const exMinStrength = parseInt(exStrength || "0", 10);
+  const exMinCardio = parseInt(exCardio || "0", 10);
   const exTotalSheet = exMinRunning + exMinWalking + exMinStrength + exMinCardio;
 
   const totalExerciseMin = (todayExercise?.running ?? 0) + (todayExercise?.walking ?? 0) +
@@ -218,10 +215,10 @@ export default function DiaryScreen() {
   };
 
   const openExercise = () => {
-    setExRunningIdx(findExerciseIdx(todayExercise?.running ?? 0));
-    setExWalkingIdx(findExerciseIdx(todayExercise?.walking ?? 0));
-    setExStrengthIdx(findExerciseIdx(todayExercise?.strengthTraining ?? 0));
-    setExCardioIdx(findExerciseIdx(todayExercise?.cardio ?? 0));
+    setExRunning(String(todayExercise?.running ?? 0));
+    setExWalking(String(todayExercise?.walking ?? 0));
+    setExStrength(String(todayExercise?.strengthTraining ?? 0));
+    setExCardio(String(todayExercise?.cardio ?? 0));
     setShowExerciseSheet(true);
   };
 
@@ -480,15 +477,11 @@ export default function DiaryScreen() {
                 <Text style={[shStyles.title, { color: colors.text }]}>Sleep Log</Text>
                 <View style={styles.sleepPickerSection}>
                   <Text style={[styles.sleepPickerLabel, { color: colors.textSecondary }]}>Bedtime</Text>
-                  <View style={[styles.timePickerBox, { backgroundColor: colors.sectionBg, borderRadius: 14 }]}>
-                    <TimePicker value={bedtime} onChange={setBedtime} colors={colors} />
-                  </View>
+                  <SimpleTimeInput value={bedtime} onChange={setBedtime} colors={colors} />
                 </View>
                 <View style={[styles.sleepPickerSection, { marginTop: 12 }]}>
                   <Text style={[styles.sleepPickerLabel, { color: colors.textSecondary }]}>Wake Time</Text>
-                  <View style={[styles.timePickerBox, { backgroundColor: colors.sectionBg, borderRadius: 14 }]}>
-                    <TimePicker value={wakeTime} onChange={setWakeTime} colors={colors} />
-                  </View>
+                  <SimpleTimeInput value={wakeTime} onChange={setWakeTime} colors={colors} />
                 </View>
                 <View style={[styles.sleepTotalBox, { backgroundColor: colors.tealLight, marginTop: 12 }]}>
                   <Feather name="moon" size={18} color={colors.gold} />
@@ -543,12 +536,12 @@ export default function DiaryScreen() {
             <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16, backgroundColor: colors.surface }]}>
               <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
               <Text style={[shStyles.title, { color: colors.text }]}>Log Exercise</Text>
-              <Text style={[styles.hint, { color: colors.textSecondary }]}>Scroll each dial to select duration (minutes)</Text>
-              <View style={styles.exerciseDialGrid}>
-                <ExerciseDial icon="activity" label="Running" idx={exRunningIdx} onChange={setExRunningIdx} colors={colors} />
-                <ExerciseDial icon="navigation" label="Walking" idx={exWalkingIdx} onChange={setExWalkingIdx} colors={colors} />
-                <ExerciseDial icon="zap" label="Strength" idx={exStrengthIdx} onChange={setExStrengthIdx} colors={colors} />
-                <ExerciseDial icon="heart" label="Cardio" idx={exCardioIdx} onChange={setExCardioIdx} colors={colors} />
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>Enter duration in minutes for each activity</Text>
+              <View style={{ marginBottom: 4 }}>
+                <ActivityInput icon="activity" label="Running" value={exRunning} onChange={setExRunning} colors={colors} />
+                <ActivityInput icon="navigation" label="Walking" value={exWalking} onChange={setExWalking} colors={colors} />
+                <ActivityInput icon="zap" label="Strength" value={exStrength} onChange={setExStrength} colors={colors} />
+                <ActivityInput icon="heart" label="Cardio" value={exCardio} onChange={setExCardio} colors={colors} />
               </View>
               <View style={[styles.exTotalRow, { backgroundColor: colors.sectionBg }]}>
                 <Text style={[styles.exTotalLabel, { color: colors.textSecondary }]}>Total Active Time</Text>
@@ -652,19 +645,23 @@ function ExerciseTile({ icon, label, value, colors }: { icon: string; label: str
   );
 }
 
-function ExerciseDial({ icon, label, idx, onChange, colors }: { icon: string; label: string; idx: number; onChange: (i: number) => void; colors: any }) {
+function ActivityInput({ icon, label, value, onChange, colors }: { icon: string; label: string; value: string; onChange: (v: string) => void; colors: any }) {
   return (
-    <View style={[styles.exerciseDialItem, { backgroundColor: colors.sectionBg }]}>
-      <Feather name={icon as any} size={18} color={colors.gold} style={{ marginBottom: 2 }} />
-      <Text style={[styles.exDialLabel, { color: colors.textSecondary }]}>{label}</Text>
-      <WheelPicker
-        items={EXERCISE_STEPS}
-        initialIndex={idx}
-        onChange={(i) => onChange(i)}
-        width={72}
-        colors={colors}
+    <View style={styles.activityRow}>
+      <View style={[styles.activityIconBox, { backgroundColor: colors.sectionBg }]}>
+        <Feather name={icon as any} size={18} color={colors.gold} />
+      </View>
+      <Text style={[styles.activityLabel, { color: colors.text }]}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        keyboardType="numeric"
+        placeholder="0"
+        placeholderTextColor={colors.placeholder}
+        style={[styles.activityInput, { backgroundColor: colors.inputBg, color: colors.text }]}
+        selectTextOnFocus
       />
-      <Text style={[styles.exDialUnit, { color: colors.textSecondary }]}>min</Text>
+      <Text style={[styles.activityUnit, { color: colors.textSecondary }]}>min</Text>
     </View>
   );
 }
@@ -719,10 +716,11 @@ const styles = StyleSheet.create({
   exTile: { width: "48%", padding: 12, borderRadius: 12, alignItems: "center" },
   exTileValue: { fontSize: 16, fontWeight: "700" as const, marginBottom: 2 },
   exTileLabel: { fontSize: 11 },
-  exerciseDialGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 12 },
-  exerciseDialItem: { width: "48%", borderRadius: 14, paddingVertical: 10, paddingHorizontal: 8, alignItems: "center" },
-  exDialLabel: { fontSize: 11, fontWeight: "600" as const, marginBottom: 4 },
-  exDialUnit: { fontSize: 11, marginTop: 2 },
+  activityRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
+  activityIconBox: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  activityLabel: { flex: 1, fontSize: 15, fontWeight: "500" as const },
+  activityInput: { width: 70, height: 44, borderRadius: 10, textAlign: "center", fontSize: 18, fontWeight: "600" as const },
+  activityUnit: { fontSize: 13, width: 26 },
   exTotalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 12, marginTop: 4, borderRadius: 10 },
   exTotalLabel: { fontSize: 14 },
   exTotalValue: { fontSize: 18, fontWeight: "700" as const },

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { ScrollView, View, Text, Platform } from "react-native";
+import { ScrollView, View, Text, Platform, TextInput, TouchableOpacity } from "react-native";
 
 const ITEM_HEIGHT = 46;
 const VISIBLE = 5;
@@ -183,4 +183,87 @@ export function findExerciseIdx(minutes: number): number {
   const rounded = Math.round(minutes / 5) * 5;
   const idx = EXERCISE_STEPS.indexOf(String(rounded));
   return idx >= 0 ? idx : 0;
+}
+
+export function SimpleTimeInput({
+  value,
+  onChange,
+  colors,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  colors: any;
+}) {
+  const parsed = parse24h(value || "08:00");
+  const [text, setText] = React.useState(
+    `${parsed.h12}:${String(parsed.min).padStart(2, "0")}`
+  );
+  const [period, setPeriod] = React.useState<"AM" | "PM">(parsed.ampm);
+
+  const tryEmit = (t: string, p: "AM" | "PM") => {
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (m) {
+      const h = parseInt(m[1], 10);
+      const mn = parseInt(m[2], 10);
+      if (h >= 1 && h <= 12 && mn >= 0 && mn <= 59) {
+        onChange(to24h(h, mn, p));
+      }
+    }
+  };
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <TextInput
+        value={text}
+        onChangeText={(t) => { setText(t); tryEmit(t, period); }}
+        placeholder="10:30"
+        keyboardType="numbers-and-punctuation"
+        maxLength={5}
+        style={{
+          flex: 1,
+          height: 52,
+          borderRadius: 10,
+          paddingHorizontal: 16,
+          fontSize: 24,
+          fontWeight: "600" as const,
+          backgroundColor: colors.inputBg,
+          color: colors.text,
+        }}
+      />
+      <View
+        style={{
+          flexDirection: "row",
+          borderRadius: 10,
+          overflow: "hidden",
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}
+      >
+        <TouchableOpacity
+          style={{
+            paddingHorizontal: 18,
+            paddingVertical: 14,
+            backgroundColor: period === "AM" ? colors.teal : colors.sectionBg,
+          }}
+          onPress={() => { setPeriod("AM"); tryEmit(text, "AM"); }}
+        >
+          <Text style={{ color: period === "AM" ? "#fff" : colors.textSecondary, fontWeight: "600" as const, fontSize: 15 }}>
+            AM
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{
+            paddingHorizontal: 18,
+            paddingVertical: 14,
+            backgroundColor: period === "PM" ? colors.teal : colors.sectionBg,
+          }}
+          onPress={() => { setPeriod("PM"); tryEmit(text, "PM"); }}
+        >
+          <Text style={{ color: period === "PM" ? "#fff" : colors.textSecondary, fontWeight: "600" as const, fontSize: 15 }}>
+            PM
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 }

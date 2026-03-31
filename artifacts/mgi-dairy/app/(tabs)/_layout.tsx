@@ -23,7 +23,7 @@ export default function TabLayout() {
           borderTopWidth: 1,
           borderTopColor: colors.border,
           elevation: 0,
-          height: Platform.OS === "web" ? 84 : 64,
+          height: Platform.OS === "web" ? 66 : 54,
         },
         tabBarLabelStyle: {
           fontSize: 10,

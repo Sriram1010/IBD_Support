@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import { TimePicker, parse24h } from "@/components/WheelPicker";
+import { SimpleTimeInput, parse24h } from "@/components/WheelPicker";
 
 const DAYS = [
   { key: "Mon", label: "M" },
@@ -85,7 +85,7 @@ export default function MedsScreen() {
   };
 
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
-  const tabBarHeight = Platform.OS === "web" ? 84 : 64;
+  const tabBarHeight = Platform.OS === "web" ? 66 : 54;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   return (
@@ -212,9 +212,7 @@ export default function MedsScreen() {
                   </View>
 
                   <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 14 }]}>Daily Reminder Time</Text>
-                  <View style={[styles.timePickerBox, { backgroundColor: colors.sectionBg, borderRadius: 14 }]}>
-                    <TimePicker value={reminderTime} onChange={setReminderTime} colors={colors} />
-                  </View>
+                  <SimpleTimeInput value={reminderTime} onChange={setReminderTime} colors={colors} />
 
                   <View style={[styles.alarmNote, { backgroundColor: colors.sectionBg, marginTop: 12 }]}>
                     <Feather name="info" size={14} color={colors.gold} />

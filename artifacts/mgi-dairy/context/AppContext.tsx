@@ -45,6 +45,7 @@ export type FoodCategory = "trigger" | "safe" | "reintroduce";
 export interface FoodTrigger {
   id: string;
   date: string;
+  time?: string;
   food: string;
   notes: string;
   category: FoodCategory;

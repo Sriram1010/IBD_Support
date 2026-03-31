@@ -11,7 +11,20 @@ import { useRouter } from "expo-router";
 
 import Colors from "@/constants/colors";
 import { useApp, FoodCategory, FoodTrigger } from "@/context/AppContext";
-import { useDateString } from "@/hooks/useDateString";
+import { useDateString, formatTimeFromDate } from "@/hooks/useDateString";
+import { parse24h } from "@/components/WheelPicker";
+
+function fmtShortDate(d: string): string {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const dt = new Date(d + "T12:00:00");
+  return `${months[dt.getMonth()]} ${dt.getDate()}`;
+}
+
+function fmtTime12(t: string): string {
+  if (!t) return "";
+  const { h12, min, ampm } = parse24h(t);
+  return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
+}
 
 const CATEGORY_META: Record<FoodCategory, { label: string; color: string; icon: string; bg: string }> = {
   trigger: { label: "Trigger Foods", color: "#EF4444", icon: "alert-triangle", bg: "#FEF2F2" },
@@ -58,7 +71,7 @@ export default function FoodScreen() {
     if (editId) {
       await updateFoodTrigger(editId, { food: food.trim(), notes: notes.trim(), category });
     } else {
-      await addFoodTrigger({ date: today, food: food.trim(), notes: notes.trim(), category });
+      await addFoodTrigger({ date: today, time: formatTimeFromDate(new Date()), food: food.trim(), notes: notes.trim(), category });
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowSheet(false);
@@ -81,7 +94,7 @@ export default function FoodScreen() {
   };
 
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
-  const tabBarHeight = Platform.OS === "web" ? 84 : 64;
+  const tabBarHeight = Platform.OS === "web" ? 66 : 54;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   return (
@@ -142,6 +155,9 @@ export default function FoodScreen() {
                       <View style={[styles.foodDot, { backgroundColor: meta.color }]} />
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.foodName, { color: colors.text }]}>{t.food}</Text>
+                        <Text style={[styles.foodMeta, { color: colors.placeholder }]}>
+                          {fmtShortDate(t.date)}{t.time ? ` · ${fmtTime12(t.time)}` : ""}
+                        </Text>
                         {t.notes ? <Text style={[styles.foodNotes, { color: colors.textSecondary }]} numberOfLines={2}>{t.notes}</Text> : null}
                         {cat === "trigger" && (
                           <TouchableOpacity
@@ -272,6 +288,7 @@ const styles = StyleSheet.create({
   foodRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
   foodDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
   foodName: { fontSize: 14, fontWeight: "600" as const },
+  foodMeta: { fontSize: 11, marginTop: 1, marginBottom: 2 },
   foodNotes: { fontSize: 13, marginTop: 2 },
   checkStoolBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start", marginTop: 6 },
   checkStoolText: { fontSize: 11, fontWeight: "600" as const },
