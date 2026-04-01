@@ -98,7 +98,7 @@ export default function FoodScreen() {
   };
 
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
-  const tabBarHeight = Platform.OS === "web" ? 66 : 58;
+  const tabBarHeight = Platform.OS === "web" ? 60 : 50;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   return (
@@ -127,7 +127,7 @@ export default function FoodScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {(["trigger", "flareup", "safe", "reintroduce"] as FoodCategory[]).map((cat) => {
+          {(["trigger", "safe", "reintroduce", "flareup"] as FoodCategory[]).map((cat) => {
             const meta = CATEGORY_META[cat];
             const items = byCategory(cat);
             const isDark = colorScheme === "dark";

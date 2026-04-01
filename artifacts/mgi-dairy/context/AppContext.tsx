@@ -98,6 +98,7 @@ interface AppContextType {
   deleteMeal: (id: string) => Promise<void>;
   addWaterEntry: (entry: Omit<WaterEntry, "id">) => Promise<void>;
   deleteWaterEntry: (id: string) => Promise<void>;
+  updateWaterEntry: (id: string, amountMl: number) => Promise<void>;
   addSleepLog: (log: Omit<SleepLog, "id">) => Promise<void>;
   updateSleepLog: (id: string, log: Partial<SleepLog>) => Promise<void>;
   saveExerciseLog: (log: Omit<ExerciseLog, "id">) => Promise<void>;
@@ -224,6 +225,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteWaterEntry = useCallback(async (id: string) => {
     setWaterEntries((p) => { const u = p.filter((w) => w.id !== id); saveData(STORAGE_KEYS.WATER, u); return u; });
+  }, []);
+
+  const updateWaterEntry = useCallback(async (id: string, amountMl: number) => {
+    setWaterEntries((p) => { const u = p.map((w) => w.id === id ? { ...w, amountMl } : w); saveData(STORAGE_KEYS.WATER, u); return u; });
   }, []);
 
   const addSleepLog = useCallback(async (log: Omit<SleepLog, "id">) => {
@@ -353,7 +358,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         meals, waterEntries, sleepLogs, exerciseLogs, bowelLogs,
         foodTriggers, medications, triggers, symptomLogs,
         waterGoalMl, sleepGoalHours, exerciseGoalMinutes,
-        addMeal, deleteMeal, addWaterEntry, deleteWaterEntry, addSleepLog, updateSleepLog,
+        addMeal, deleteMeal, addWaterEntry, deleteWaterEntry, updateWaterEntry, addSleepLog, updateSleepLog,
         saveExerciseLog, saveBowelLog, deleteBowelPhoto,
         addFoodTrigger, updateFoodTrigger, deleteFoodTrigger,
         addMedication, updateMedication, deleteMedication,

@@ -85,7 +85,7 @@ export default function MedsScreen() {
   };
 
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
-  const tabBarHeight = Platform.OS === "web" ? 66 : 58;
+  const tabBarHeight = Platform.OS === "web" ? 60 : 50;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   return (
