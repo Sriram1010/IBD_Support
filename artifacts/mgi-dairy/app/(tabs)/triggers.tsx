@@ -28,6 +28,7 @@ function fmtTime12(t: string): string {
 
 const CATEGORY_META: Record<FoodCategory, { label: string; color: string; icon: string; bg: string }> = {
   trigger: { label: "Trigger Foods", color: "#EF4444", icon: "alert-triangle", bg: "#FEF2F2" },
+  flareup: { label: "Flare-up Foods", color: "#DC2626", icon: "zap", bg: "#FFF1F1" },
   safe: { label: "Safe Foods", color: "#10B981", icon: "check-circle", bg: "#ECFDF5" },
   reintroduce: { label: "Reintroduce", color: "#F97316", icon: "refresh-cw", bg: "#FFF7ED" },
 };
@@ -86,15 +87,18 @@ export default function FoodScreen() {
   };
 
   const handleMove = (item: FoodTrigger) => {
-    const options = (["trigger", "safe", "reintroduce"] as FoodCategory[]).filter((c) => c !== (item.category ?? "trigger"));
+    const all: FoodCategory[] = ["trigger", "flareup", "safe", "reintroduce"];
+    const options = all.filter((c) => c !== (item.category ?? "trigger"));
+    const nowDate = today;
+    const nowTime = formatTimeFromDate(new Date());
     Alert.alert("Move to…", undefined, [
-      ...options.map((c) => ({ text: CATEGORY_META[c].label, onPress: () => updateFoodTrigger(item.id, { category: c }) })),
+      ...options.map((c) => ({ text: CATEGORY_META[c].label, onPress: () => updateFoodTrigger(item.id, { category: c, date: nowDate, time: nowTime }) })),
       { text: "Cancel", style: "cancel" },
     ]);
   };
 
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
-  const tabBarHeight = Platform.OS === "web" ? 66 : 54;
+  const tabBarHeight = Platform.OS === "web" ? 66 : 58;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   return (
@@ -114,7 +118,7 @@ export default function FoodScreen() {
         <View style={[styles.banner, { backgroundColor: colors.purple }]}>
           <Feather name="layers" size={15} color="#fff" />
           <Text style={styles.bannerText}>
-            {byCategory("trigger").length} triggers · {byCategory("safe").length} safe · {byCategory("reintroduce").length} reintroduce
+            {byCategory("trigger").length} triggers · {byCategory("flareup").length} flare-ups · {byCategory("safe").length} safe · {byCategory("reintroduce").length} reintroduce
           </Text>
         </View>
 
@@ -123,7 +127,7 @@ export default function FoodScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {(["trigger", "safe", "reintroduce"] as FoodCategory[]).map((cat) => {
+          {(["trigger", "flareup", "safe", "reintroduce"] as FoodCategory[]).map((cat) => {
             const meta = CATEGORY_META[cat];
             const items = byCategory(cat);
             const isDark = colorScheme === "dark";
@@ -205,7 +209,7 @@ export default function FoodScreen() {
 
                   <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Category</Text>
                   <View style={styles.categoryRow}>
-                    {(["trigger", "safe", "reintroduce"] as FoodCategory[]).map((c) => {
+                    {(["trigger", "flareup", "safe", "reintroduce"] as FoodCategory[]).map((c) => {
                       const m = CATEGORY_META[c];
                       return (
                         <TouchableOpacity

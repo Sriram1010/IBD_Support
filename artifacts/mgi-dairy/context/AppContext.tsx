@@ -13,6 +13,7 @@ export interface WaterEntry {
   id: string;
   date: string;
   amountMl: number;
+  time?: string;
 }
 
 export interface SleepLog {
@@ -40,7 +41,7 @@ export interface BowelLog {
   count: number;
 }
 
-export type FoodCategory = "trigger" | "safe" | "reintroduce";
+export type FoodCategory = "trigger" | "safe" | "reintroduce" | "flareup";
 
 export interface FoodTrigger {
   id: string;
@@ -96,6 +97,7 @@ interface AppContextType {
   addMeal: (meal: Omit<MealEntry, "id">) => Promise<void>;
   deleteMeal: (id: string) => Promise<void>;
   addWaterEntry: (entry: Omit<WaterEntry, "id">) => Promise<void>;
+  deleteWaterEntry: (id: string) => Promise<void>;
   addSleepLog: (log: Omit<SleepLog, "id">) => Promise<void>;
   updateSleepLog: (id: string, log: Partial<SleepLog>) => Promise<void>;
   saveExerciseLog: (log: Omit<ExerciseLog, "id">) => Promise<void>;
@@ -218,6 +220,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addWaterEntry = useCallback(async (entry: Omit<WaterEntry, "id">) => {
     const n: WaterEntry = { ...entry, id: generateId() };
     setWaterEntries((p) => { const u = [...p, n]; saveData(STORAGE_KEYS.WATER, u); return u; });
+  }, []);
+
+  const deleteWaterEntry = useCallback(async (id: string) => {
+    setWaterEntries((p) => { const u = p.filter((w) => w.id !== id); saveData(STORAGE_KEYS.WATER, u); return u; });
   }, []);
 
   const addSleepLog = useCallback(async (log: Omit<SleepLog, "id">) => {
@@ -347,7 +353,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         meals, waterEntries, sleepLogs, exerciseLogs, bowelLogs,
         foodTriggers, medications, triggers, symptomLogs,
         waterGoalMl, sleepGoalHours, exerciseGoalMinutes,
-        addMeal, deleteMeal, addWaterEntry, addSleepLog, updateSleepLog,
+        addMeal, deleteMeal, addWaterEntry, deleteWaterEntry, addSleepLog, updateSleepLog,
         saveExerciseLog, saveBowelLog, deleteBowelPhoto,
         addFoodTrigger, updateFoodTrigger, deleteFoodTrigger,
         addMedication, updateMedication, deleteMedication,

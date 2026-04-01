@@ -3,6 +3,7 @@ import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 
 export default function TabLayout() {
@@ -10,6 +11,7 @@ export default function TabLayout() {
   const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const colors = isDark ? Colors.dark : Colors.light;
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -23,14 +25,15 @@ export default function TabLayout() {
           borderTopWidth: 1,
           borderTopColor: colors.border,
           elevation: 0,
-          height: Platform.OS === "web" ? 66 : 54,
+          height: Platform.OS === "web" ? 66 : insets.bottom + 58,
+          paddingBottom: Platform.OS === "web" ? 0 : insets.bottom + 4,
         },
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: "500" as const,
-          marginBottom: Platform.OS === "ios" ? 0 : 4,
+          marginBottom: 2,
         },
-        tabBarIconStyle: { marginTop: Platform.OS === "ios" ? 0 : 2 },
+        tabBarIconStyle: { marginTop: 2 },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />

@@ -16,9 +16,10 @@ export default function MGIScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const webViewRef = useRef<any>(null);
 
-  const topPad = Platform.OS === "web" ? 67 + insets.top : 0;
-  const tabBarHeight = Platform.OS === "web" ? 84 : 83;
+  const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
+  const tabBarHeight = Platform.OS === "web" ? 66 : 54;
 
   const reload = () => {
     setError(false);
@@ -26,14 +27,27 @@ export default function MGIScreen() {
     setReloadKey((k) => k + 1);
   };
 
+  const goBack = () => {
+    if (webViewRef.current) webViewRef.current.goBack();
+  };
+
+  const goForward = () => {
+    if (webViewRef.current) webViewRef.current.goForward();
+  };
+
   if (Platform.OS === "web") {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
-          <Text style={[styles.headerTitle, { color: colors.headerText }]}>MGI Academy</Text>
-          <TouchableOpacity style={[styles.reloadBtn, { backgroundColor: colors.gold }]} onPress={reload}>
-            <Feather name="refresh-cw" size={16} color="#fff" />
-          </TouchableOpacity>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.headerText }]}>MGI Academy</Text>
+            <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Mind Gut Immunity</Text>
+          </View>
+          <View style={styles.navBtns}>
+            <TouchableOpacity style={[styles.navBtn, { backgroundColor: "rgba(255,255,255,0.15)" }]} onPress={reload}>
+              <Feather name="refresh-cw" size={16} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={[styles.webviewContainer, { marginBottom: tabBarHeight + insets.bottom }]}>
           {loading && (
@@ -65,7 +79,6 @@ export default function MGIScreen() {
     );
   }
 
-  // Native WebView
   let WebView: any = null;
   try {
     WebView = require("react-native-webview").WebView;
@@ -75,7 +88,10 @@ export default function MGIScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
-          <Text style={[styles.headerTitle, { color: colors.headerText }]}>MGI Academy</Text>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.headerText }]}>MGI Academy</Text>
+            <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Mind Gut Immunity</Text>
+          </View>
         </View>
         <View style={styles.errorContainer}>
           <Feather name="alert-circle" size={40} color={colors.placeholder} />
@@ -88,10 +104,21 @@ export default function MGIScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
-        <Text style={[styles.headerTitle, { color: colors.headerText }]}>MGI Academy</Text>
-        <TouchableOpacity style={[styles.reloadBtn, { backgroundColor: colors.gold }]} onPress={reload}>
-          <Feather name="refresh-cw" size={16} color="#fff" />
-        </TouchableOpacity>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.headerText }]}>MGI Academy</Text>
+          <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Mind Gut Immunity</Text>
+        </View>
+        <View style={styles.navBtns}>
+          <TouchableOpacity style={[styles.navBtn, { backgroundColor: "rgba(255,255,255,0.15)" }]} onPress={goBack}>
+            <Feather name="chevron-left" size={18} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.navBtn, { backgroundColor: "rgba(255,255,255,0.15)" }]} onPress={goForward}>
+            <Feather name="chevron-right" size={18} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.navBtn, { backgroundColor: colors.gold }]} onPress={reload}>
+            <Feather name="refresh-cw" size={15} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={[styles.webviewContainer, { marginBottom: tabBarHeight + insets.bottom }]}>
         {loading && (
@@ -101,6 +128,7 @@ export default function MGIScreen() {
           </View>
         )}
         <WebView
+          ref={webViewRef}
           key={reloadKey}
           source={{ uri: ACADEMY_URL }}
           onLoadStart={() => setLoading(true)}
@@ -129,7 +157,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 14, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
   headerTitle: { fontSize: 28, fontWeight: "700" as const },
-  reloadBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  headerSub: { fontSize: 13, marginTop: 2 },
+  navBtns: { flexDirection: "row", gap: 8, alignItems: "center", marginBottom: 4 },
+  navBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
   webviewContainer: { flex: 1 },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 12, zIndex: 10 },
   loadingText: { fontSize: 14 },

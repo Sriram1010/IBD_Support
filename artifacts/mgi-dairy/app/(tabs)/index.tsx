@@ -66,7 +66,7 @@ export default function DiaryScreen() {
 
   const {
     meals, waterEntries, sleepLogs,
-    addMeal, deleteMeal, addWaterEntry, addSleepLog, updateSleepLog,
+    addMeal, deleteMeal, addWaterEntry, deleteWaterEntry, addSleepLog, updateSleepLog,
     saveExerciseLog, getTodayExercise,
     waterGoalMl, setWaterGoalMl,
     sleepGoalHours, setSleepGoalHours,
@@ -111,7 +111,7 @@ export default function DiaryScreen() {
 
   const waterPct = Math.min((todayWaterTotal / waterGoalMl) * 100, 100);
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
-  const tabBarHeight = Platform.OS === "web" ? 66 : 54;
+  const tabBarHeight = Platform.OS === "web" ? 66 : 58;
   const bottomPad = insets.bottom + tabBarHeight + 16;
 
   const sleepHoursToday = calcSleepHoursNum(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
@@ -156,7 +156,7 @@ export default function DiaryScreen() {
   const handleAddWaterFromText = async () => {
     const parsed = parseWaterInput(waterText);
     if (parsed === null || parsed <= 0) { Alert.alert("Could not parse", "Try '250 ml' or '2 cups'."); return; }
-    await addWaterEntry({ date: today, amountMl: Math.round(parsed) });
+    await addWaterEntry({ date: today, amountMl: Math.round(parsed), time: formatTimeFromDate(new Date()) });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setWaterText(""); setShowWaterModal(false);
   };
@@ -165,7 +165,7 @@ export default function DiaryScreen() {
     const amount = parseFloat(waterManual);
     if (isNaN(amount) || amount <= 0) { Alert.alert("Invalid", "Enter a number > 0."); return; }
     const ml = waterUnit === "gal" ? Math.round(amount * 3785.41) : Math.round(amount);
-    await addWaterEntry({ date: today, amountMl: ml });
+    await addWaterEntry({ date: today, amountMl: ml, time: formatTimeFromDate(new Date()) });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setWaterManual(""); setShowWaterModal(false);
   };
@@ -305,6 +305,24 @@ export default function DiaryScreen() {
             </View>
             <GoalProgressBar pct={waterPct} />
             <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>{Math.round(waterPct)}% of daily goal</Text>
+            {waterEntries.filter((w) => w.date === today).length > 0 && (
+              <View style={[styles.waterEntryList, { borderTopColor: colors.borderLight, borderTopWidth: 1, marginTop: 10 }]}>
+                {waterEntries.filter((w) => w.date === today).sort((a, b) => a.id.localeCompare(b.id)).map((w) => (
+                  <View key={w.id} style={styles.waterEntryRow}>
+                    <Feather name="clock" size={12} color={colors.placeholder} />
+                    <Text style={[styles.waterEntryTime, { color: colors.textSecondary }]}>
+                      {w.time ?? "—"}
+                    </Text>
+                    <Text style={[styles.waterEntryAmt, { color: colors.text }]}>
+                      {waterUnit === "gal" ? `${mlToGallons(w.amountMl)} gal` : `${w.amountMl} ml`}
+                    </Text>
+                    <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); Alert.alert("Remove entry?", `${w.amountMl} ml`, [{ text: "Cancel", style: "cancel" }, { text: "Remove", style: "destructive", onPress: () => deleteWaterEntry(w.id) }]); }}>
+                      <Feather name="trash-2" size={14} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* SLEEP */}
@@ -411,8 +429,8 @@ export default function DiaryScreen() {
               <Feather name="mic" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.teal, marginTop: 12, marginHorizontal: 0 }]} onPress={handleAddWaterFromText}>
-            <Text style={styles.saveText}>Add</Text>
+          <TouchableOpacity style={[styles.waterAddConfirmBtn, { backgroundColor: colors.teal }]} onPress={handleAddWaterFromText}>
+            <Text style={[styles.saveText, { color: "#fff" }]}>Add</Text>
           </TouchableOpacity>
           <View style={[styles.dividerRow, { borderColor: colors.border }]}>
             <Text style={[styles.dividerText, { color: colors.placeholder }]}>or enter manually ({waterUnit})</Text>
@@ -527,36 +545,40 @@ export default function DiaryScreen() {
           </View>
         </KbSheet>
 
-        {/* EXERCISE SHEET with drum-roll dials */}
+        {/* EXERCISE SHEET */}
         <Modal visible={showExerciseSheet} animationType="slide" transparent>
-          <View style={shStyles.overlay}>
-            <TouchableWithoutFeedback onPress={() => setShowExerciseSheet(false)}>
-              <View style={StyleSheet.absoluteFill} />
-            </TouchableWithoutFeedback>
-            <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16, backgroundColor: colors.surface }]}>
-              <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
-              <Text style={[shStyles.title, { color: colors.text }]}>Log Exercise</Text>
-              <Text style={[styles.hint, { color: colors.textSecondary }]}>Enter duration in minutes for each activity</Text>
-              <View style={{ marginBottom: 4 }}>
-                <ActivityInput icon="activity" label="Running" value={exRunning} onChange={setExRunning} colors={colors} />
-                <ActivityInput icon="navigation" label="Walking" value={exWalking} onChange={setExWalking} colors={colors} />
-                <ActivityInput icon="zap" label="Strength" value={exStrength} onChange={setExStrength} colors={colors} />
-                <ActivityInput icon="heart" label="Cardio" value={exCardio} onChange={setExCardio} colors={colors} />
-              </View>
-              <View style={[styles.exTotalRow, { backgroundColor: colors.sectionBg }]}>
-                <Text style={[styles.exTotalLabel, { color: colors.textSecondary }]}>Total Active Time</Text>
-                <Text style={[styles.exTotalValue, { color: colors.gold }]}>{exTotalSheet} min</Text>
-              </View>
-              <View style={styles.modalButtons}>
-                <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseSheet(false)}>
-                  <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExercise}>
-                  <Text style={styles.saveText}>Save</Text>
-                </TouchableOpacity>
-              </View>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={shStyles.overlay}>
+              <TouchableWithoutFeedback onPress={() => setShowExerciseSheet(false)}>
+                <View style={StyleSheet.absoluteFill} />
+              </TouchableWithoutFeedback>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16, backgroundColor: colors.surface }]}>
+                  <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
+                  <Text style={[shStyles.title, { color: colors.text }]}>Log Exercise</Text>
+                  <Text style={[styles.hint, { color: colors.textSecondary }]}>Enter duration in minutes for each activity</Text>
+                  <View style={{ marginBottom: 4 }}>
+                    <ActivityInput icon="activity" label="Running" value={exRunning} onChange={setExRunning} colors={colors} />
+                    <ActivityInput icon="navigation" label="Walking" value={exWalking} onChange={setExWalking} colors={colors} />
+                    <ActivityInput icon="zap" label="Strength" value={exStrength} onChange={setExStrength} colors={colors} />
+                    <ActivityInput icon="heart" label="Cardio" value={exCardio} onChange={setExCardio} colors={colors} />
+                  </View>
+                  <View style={[styles.exTotalRow, { backgroundColor: colors.sectionBg }]}>
+                    <Text style={[styles.exTotalLabel, { color: colors.textSecondary }]}>Total Active Time</Text>
+                    <Text style={[styles.exTotalValue, { color: colors.gold }]}>{exTotalSheet} min</Text>
+                  </View>
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseSheet(false)}>
+                      <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExercise}>
+                      <Text style={styles.saveText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* EXERCISE GOAL MODAL */}
@@ -719,8 +741,13 @@ const styles = StyleSheet.create({
   activityRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   activityIconBox: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   activityLabel: { flex: 1, fontSize: 15, fontWeight: "500" as const },
-  activityInput: { width: 70, height: 44, borderRadius: 10, textAlign: "center", fontSize: 18, fontWeight: "600" as const },
-  activityUnit: { fontSize: 13, width: 26 },
+  activityInput: { width: 90, height: 48, borderRadius: 10, textAlign: "center", fontSize: 20, fontWeight: "600" as const },
+  activityUnit: { fontSize: 13, width: 30 },
+  waterEntryList: { paddingTop: 8 },
+  waterEntryRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
+  waterEntryTime: { fontSize: 12, minWidth: 50 },
+  waterEntryAmt: { flex: 1, fontSize: 13, fontWeight: "500" as const },
+  waterAddConfirmBtn: { marginTop: 12, padding: 14, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   exTotalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 12, marginTop: 4, borderRadius: 10 },
   exTotalLabel: { fontSize: 14 },
   exTotalValue: { fontSize: 18, fontWeight: "700" as const },
