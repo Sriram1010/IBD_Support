@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Modal, TextInput, Alert, Platform, useColorScheme,
   KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +14,9 @@ import Colors from "@/constants/colors";
 import { useApp, FoodCategory, FoodTrigger } from "@/context/AppContext";
 import { useDateString, formatTimeFromDate } from "@/hooks/useDateString";
 import { parse24h } from "@/components/WheelPicker";
+
+const CATEGORY_ORDER_KEY = "mgi_food_category_order";
+const DEFAULT_ORDER: FoodCategory[] = ["trigger", "safe", "reintroduce", "flareup"];
 
 function fmtShortDate(d: string): string {
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -47,9 +51,35 @@ export default function FoodScreen() {
   const [food, setFood] = useState("");
   const [notes, setNotes] = useState("");
   const [category, setCategory] = useState<FoodCategory>("trigger");
+  const [categoryOrder, setCategoryOrder] = useState<FoodCategory[]>(DEFAULT_ORDER);
+  const [isReordering, setIsReordering] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(CATEGORY_ORDER_KEY).then((v) => {
+      if (v) {
+        try {
+          const parsed = JSON.parse(v) as FoodCategory[];
+          if (parsed.length === 4) setCategoryOrder(parsed);
+        } catch {}
+      }
+    });
+  }, []);
+
+  const saveOrder = async (order: FoodCategory[]) => {
+    await AsyncStorage.setItem(CATEGORY_ORDER_KEY, JSON.stringify(order));
+  };
+
+  const moveCategory = (index: number, direction: "up" | "down") => {
+    const newOrder = [...categoryOrder];
+    const targetIdx = direction === "up" ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= newOrder.length) return;
+    [newOrder[index], newOrder[targetIdx]] = [newOrder[targetIdx], newOrder[index]];
+    setCategoryOrder(newOrder);
+    saveOrder(newOrder);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const byCategory = (cat: FoodCategory) => foodTriggers.filter((t) => (t.category ?? "trigger") === cat);
-  const totalCount = foodTriggers.length;
 
   const openAdd = (cat: FoodCategory = "trigger") => {
     setEditId(null);
@@ -89,10 +119,8 @@ export default function FoodScreen() {
   const handleMove = (item: FoodTrigger) => {
     const all: FoodCategory[] = ["trigger", "flareup", "safe", "reintroduce"];
     const options = all.filter((c) => c !== (item.category ?? "trigger"));
-    const nowDate = today;
-    const nowTime = formatTimeFromDate(new Date());
     Alert.alert("Move to…", undefined, [
-      ...options.map((c) => ({ text: CATEGORY_META[c].label, onPress: () => updateFoodTrigger(item.id, { category: c, date: nowDate, time: nowTime }) })),
+      ...options.map((c) => ({ text: CATEGORY_META[c].label, onPress: () => updateFoodTrigger(item.id, { category: c, date: today, time: formatTimeFromDate(new Date()) }) })),
       { text: "Cancel", style: "cancel" },
     ]);
   };
@@ -109,9 +137,18 @@ export default function FoodScreen() {
             <Text style={[styles.headerTitle, { color: colors.headerText }]}>Food</Text>
             <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Track your food sensitivities</Text>
           </View>
-          <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={() => openAdd("trigger")}>
-            <Feather name="plus" size={18} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={[styles.headerReorderBtn, { backgroundColor: isReordering ? colors.gold : "rgba(255,255,255,0.18)" }]}
+              onPress={() => { setIsReordering((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            >
+              <Feather name={isReordering ? "check" : "menu"} size={16} color="#fff" />
+              <Text style={styles.headerReorderText}>{isReordering ? "Done" : "Reorder"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={() => openAdd("trigger")}>
+              <Feather name="plus" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Summary banner */}
@@ -122,20 +159,54 @@ export default function FoodScreen() {
           </Text>
         </View>
 
+        {isReordering && (
+          <View style={[styles.reorderHintBar, { backgroundColor: colors.sectionBg, borderBottomColor: colors.border }]}>
+            <Feather name="info" size={13} color={colors.textSecondary} />
+            <Text style={[styles.reorderHintText, { color: colors.textSecondary }]}>Use the arrows to rearrange the category cards</Text>
+          </View>
+        )}
+
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {(["trigger", "safe", "reintroduce", "flareup"] as FoodCategory[]).map((cat) => {
+          {categoryOrder.map((cat, orderIdx) => {
             const meta = CATEGORY_META[cat];
             const items = byCategory(cat);
-            const isDark = colorScheme === "dark";
-            const cardBg = isDark ? colors.card : meta.bg;
+            const isFirst = orderIdx === 0;
+            const isLast = orderIdx === categoryOrder.length - 1;
+
             return (
-              <View key={cat} style={[styles.sectionCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+              <View
+                key={cat}
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: colors.card, shadowColor: colors.shadow },
+                  isReordering && styles.sectionCardReordering,
+                  isReordering && { borderColor: meta.color + "44", borderWidth: 1.5 },
+                ]}
+              >
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionTitleRow}>
+                    {isReordering && (
+                      <View style={styles.reorderArrows}>
+                        <TouchableOpacity
+                          style={[styles.arrowBtn, isFirst && styles.arrowBtnDisabled]}
+                          onPress={() => moveCategory(orderIdx, "up")}
+                          disabled={isFirst}
+                        >
+                          <Feather name="chevron-up" size={14} color={isFirst ? colors.placeholder : meta.color} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.arrowBtn, isLast && styles.arrowBtnDisabled]}
+                          onPress={() => moveCategory(orderIdx, "down")}
+                          disabled={isLast}
+                        >
+                          <Feather name="chevron-down" size={14} color={isLast ? colors.placeholder : meta.color} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
                     <View style={[styles.sectionIconBox, { backgroundColor: meta.color + "22" }]}>
                       <Feather name={meta.icon as any} size={16} color={meta.color} />
                     </View>
@@ -144,9 +215,11 @@ export default function FoodScreen() {
                       <Text style={[styles.countBadgeText, { color: meta.color }]}>{items.length}</Text>
                     </View>
                   </View>
-                  <TouchableOpacity style={[styles.sectionAddBtn, { backgroundColor: meta.color }]} onPress={() => openAdd(cat)}>
-                    <Feather name="plus" size={14} color="#fff" />
-                  </TouchableOpacity>
+                  {!isReordering && (
+                    <TouchableOpacity style={[styles.sectionAddBtn, { backgroundColor: meta.color }]} onPress={() => openAdd(cat)}>
+                      <Feather name="plus" size={14} color="#fff" />
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 {items.length === 0 ? (
@@ -166,27 +239,26 @@ export default function FoodScreen() {
                         {cat === "trigger" && (
                           <TouchableOpacity
                             style={[styles.checkStoolBtn, { borderColor: colors.border }]}
-                            onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                              router.push("/calendar");
-                            }}
+                            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/calendar"); }}
                           >
                             <Feather name="image" size={12} color={colors.teal} />
                             <Text style={[styles.checkStoolText, { color: colors.teal }]}>Stool</Text>
                           </TouchableOpacity>
                         )}
                       </View>
-                      <View style={styles.foodActions}>
-                        <TouchableOpacity onPress={() => handleMove(t)} style={[styles.actionBtn, { backgroundColor: colors.sectionBg }]}>
-                          <Feather name="move" size={13} color={meta.color} />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => openEdit(t)} style={[styles.actionBtn, { backgroundColor: colors.sectionBg }]}>
-                          <Feather name="edit-2" size={13} color={colors.tint} />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleDelete(t.id, t.food)} style={[styles.actionBtn, { backgroundColor: "#FEE2E2" }]}>
-                          <Feather name="trash-2" size={13} color="#EF4444" />
-                        </TouchableOpacity>
-                      </View>
+                      {!isReordering && (
+                        <View style={styles.foodActions}>
+                          <TouchableOpacity onPress={() => handleMove(t)} style={[styles.actionBtn, { backgroundColor: colors.sectionBg }]}>
+                            <Feather name="move" size={13} color={meta.color} />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => openEdit(t)} style={[styles.actionBtn, { backgroundColor: colors.sectionBg }]}>
+                            <Feather name="edit-2" size={13} color={colors.tint} />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleDelete(t.id, t.food)} style={[styles.actionBtn, { backgroundColor: "#FEE2E2" }]}>
+                            <Feather name="trash-2" size={13} color="#EF4444" />
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   ))
                 )}
@@ -276,12 +348,18 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 14, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
   headerTitle: { fontSize: 28, fontWeight: "700" as const },
   headerSub: { fontSize: 13, marginTop: 2 },
-  headerAddBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  headerButtons: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  headerReorderBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  headerReorderText: { color: "#fff", fontSize: 13, fontWeight: "600" as const },
+  headerAddBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   banner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
   bannerText: { color: "#fff", fontSize: 13, fontWeight: "600" as const },
+  reorderHintBar: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 0.5 },
+  reorderHintText: { fontSize: 12 },
   sectionCard: { borderRadius: 16, marginBottom: 14, overflow: "hidden", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  sectionCardReordering: { shadowOpacity: 0.06, elevation: 4 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14 },
-  sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
   sectionIconBox: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   sectionTitle: { fontSize: 16, fontWeight: "700" as const },
   countBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
@@ -298,6 +376,9 @@ const styles = StyleSheet.create({
   checkStoolText: { fontSize: 11, fontWeight: "600" as const },
   foodActions: { flexDirection: "row", gap: 6 },
   actionBtn: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  reorderArrows: { flexDirection: "column", gap: 0 },
+  arrowBtn: { width: 24, height: 20, alignItems: "center", justifyContent: "center", borderRadius: 4 },
+  arrowBtnDisabled: { opacity: 0.3 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
   bottomSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 16 },

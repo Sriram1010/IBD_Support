@@ -5,7 +5,7 @@ import {
   KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, TextInput,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import Svg, { Polyline, Circle, Line, Text as SvgText } from "react-native-svg";
+import Svg, { Polyline, Circle, Line, Text as SvgText, Defs, LinearGradient, Stop } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,7 +16,7 @@ import { calcSleepHours, calcSleepHoursNum } from "@/hooks/useDateString";
 
 type ViewMode = "monthly" | "weekly" | "yearly";
 type BowelColor = "red" | "yellow" | "green";
-type TrendMetric = "water" | "sleep" | "stoolCount" | "stoolType";
+type TrendMetric = "water" | "sleep" | "stoolCount" | "stoolType" | "weight";
 type TrendPeriod = "weekly" | "monthly" | "yearly";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -31,7 +31,7 @@ function getMonthDays(year: number, month: number) {
 }
 function bowelDotColor(color: BowelColor | undefined): string {
   if (color === "red") return "#EF4444";
-  if (color === "yellow") return "#F59E0B";
+  if (color === "yellow") return "#F97316";
   if (color === "green") return "#10B981";
   return "transparent";
 }
@@ -45,6 +45,27 @@ function getLast7Days(todayStr: string): string[] {
 }
 function getLast30Days(todayStr: string): string[] {
   return Array.from({ length: 30 }, (_, i) => addDays(todayStr, i - 29));
+}
+
+function getStoolCountColor(count: number): string {
+  if (count === 0) return "#9CA3AF";
+  if (count === 1) return "#10B981";
+  if (count <= 3) return "#F97316";
+  return "#EF4444";
+}
+
+function getStoolTypeColor(bColor: BowelColor | undefined): string {
+  if (!bColor) return "#9CA3AF";
+  if (bColor === "green") return "#10B981";
+  if (bColor === "yellow") return "#F97316";
+  return "#EF4444";
+}
+
+function getProgressColor(pct: number): string {
+  if (pct < 35) return "#EF4444";
+  if (pct < 65) return "#F97316";
+  if (pct < 85) return "#FBBF24";
+  return "#10B981";
 }
 
 export default function CalendarScreen() {
@@ -70,8 +91,9 @@ export default function CalendarScreen() {
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>("weekly");
 
   const {
-    meals, waterEntries, sleepLogs, bowelLogs,
+    meals, waterEntries, sleepLogs, bowelLogs, weightLogs,
     saveBowelLog, deleteBowelPhoto, getBowelLog,
+    waterGoalMl, sleepGoalHours, weightGoalKg,
   } = useApp();
 
   const bowelMap = useMemo(() => {
@@ -79,6 +101,12 @@ export default function CalendarScreen() {
     bowelLogs.forEach((b) => { map[b.date] = b; });
     return map;
   }, [bowelLogs]);
+
+  const weightMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    weightLogs.forEach((w) => { map[w.date] = w.weightKg; });
+    return map;
+  }, [weightLogs]);
 
   const openDaySheet = (date: string) => {
     setSheetDate(date);
@@ -163,77 +191,131 @@ export default function CalendarScreen() {
   const selectedWater = waterEntries.filter((w) => w.date === selectedDate).reduce((s, w) => s + w.amountMl, 0);
   const selectedSleep = sleepLogs.find((s) => s.date === selectedDate);
   const selectedBowel = bowelMap[selectedDate];
+  const selectedWeight = weightMap[selectedDate];
 
-  const monthPhotos = bowelLogs
-    .filter((b) => b.date.startsWith(`${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`))
-    .flatMap((b) => b.photos.map((uri) => ({ uri, date: b.date, color: b.color })))
-    .slice(0, 10);
+  const selectedDayPhotos = bowelMap[selectedDate]?.photos ?? [];
 
-  const getTrendData = (): { label: string; value: number }[] => {
+  const getTrendData = (): { label: string; value: number; pointColor: string }[] => {
     if (trendPeriod === "weekly") {
       const days = getLast7Days(todayStr);
       return days.map((d) => {
         let value = 0;
-        if (trendMetric === "water") value = waterEntries.filter((w) => w.date === d).reduce((s, w) => s + w.amountMl, 0) / 100;
-        else if (trendMetric === "sleep") {
+        let pointColor = "#9CA3AF";
+        if (trendMetric === "water") {
+          const ml = waterEntries.filter((w) => w.date === d).reduce((s, w) => s + w.amountMl, 0);
+          value = ml / 100;
+          const pct = Math.min((ml / waterGoalMl) * 100, 100);
+          pointColor = ml > 0 ? getProgressColor(pct) : "#9CA3AF";
+        } else if (trendMetric === "sleep") {
           const sl = sleepLogs.find((s) => s.date === d);
           value = sl ? calcSleepHoursNum(sl.bedtime, sl.wakeTime) : 0;
-        } else if (trendMetric === "stoolCount") value = bowelMap[d]?.count ?? 0;
-        else if (trendMetric === "stoolType") {
+          const pct = Math.min((value / sleepGoalHours) * 100, 100);
+          pointColor = value > 0 ? getProgressColor(pct) : "#9CA3AF";
+        } else if (trendMetric === "stoolCount") {
+          value = bowelMap[d]?.count ?? 0;
+          pointColor = getStoolCountColor(value);
+        } else if (trendMetric === "stoolType") {
           const b = bowelMap[d];
           value = b ? (b.color === "green" ? 1 : b.color === "yellow" ? 2 : 3) : 0;
+          pointColor = getStoolTypeColor(b?.color);
+        } else if (trendMetric === "weight") {
+          value = weightMap[d] ?? 0;
+          if (value > 0 && weightGoalKg > 0) {
+            const diff = Math.abs(value - weightGoalKg) / weightGoalKg;
+            const pct = Math.max(0, 100 - diff * 200);
+            pointColor = getProgressColor(pct);
+          } else {
+            pointColor = value > 0 ? "#7C5CBF" : "#9CA3AF";
+          }
         }
         const dt = new Date(d + "T12:00");
-        return { label: WEEKDAYS[dt.getDay()].slice(0, 1), value };
+        return { label: WEEKDAYS[dt.getDay()].slice(0, 1), value, pointColor };
       });
     } else if (trendPeriod === "monthly") {
       const days = getLast30Days(todayStr);
       const sampled = days.filter((_, i) => i % 5 === 0 || i === days.length - 1);
       return sampled.map((d) => {
         let value = 0;
-        if (trendMetric === "water") value = waterEntries.filter((w) => w.date === d).reduce((s, w) => s + w.amountMl, 0) / 100;
-        else if (trendMetric === "sleep") {
+        let pointColor = "#9CA3AF";
+        if (trendMetric === "water") {
+          const ml = waterEntries.filter((w) => w.date === d).reduce((s, w) => s + w.amountMl, 0);
+          value = ml / 100;
+          pointColor = ml > 0 ? getProgressColor(Math.min((ml / waterGoalMl) * 100, 100)) : "#9CA3AF";
+        } else if (trendMetric === "sleep") {
           const sl = sleepLogs.find((s) => s.date === d);
           value = sl ? calcSleepHoursNum(sl.bedtime, sl.wakeTime) : 0;
-        } else if (trendMetric === "stoolCount") value = bowelMap[d]?.count ?? 0;
-        else if (trendMetric === "stoolType") {
+          pointColor = value > 0 ? getProgressColor(Math.min((value / sleepGoalHours) * 100, 100)) : "#9CA3AF";
+        } else if (trendMetric === "stoolCount") {
+          value = bowelMap[d]?.count ?? 0;
+          pointColor = getStoolCountColor(value);
+        } else if (trendMetric === "stoolType") {
           const b = bowelMap[d];
           value = b ? (b.color === "green" ? 1 : b.color === "yellow" ? 2 : 3) : 0;
+          pointColor = getStoolTypeColor(b?.color);
+        } else if (trendMetric === "weight") {
+          value = weightMap[d] ?? 0;
+          pointColor = value > 0 ? "#7C5CBF" : "#9CA3AF";
         }
-        return { label: d.slice(5).replace("-", "/"), value };
+        return { label: d.slice(5).replace("-", "/"), value, pointColor };
       });
     } else {
       return Array.from({ length: 12 }, (_, m) => {
         const monthStr = `${viewYear}-${String(m + 1).padStart(2, "0")}`;
         let value = 0;
+        let pointColor = "#9CA3AF";
         if (trendMetric === "water") {
           const dayEntries = waterEntries.filter((w) => w.date.startsWith(monthStr));
           const total = dayEntries.reduce((s, w) => s + w.amountMl, 0);
-          const days = new Set(dayEntries.map((w) => w.date)).size;
-          value = days > 0 ? (total / days) / 100 : 0;
+          const daysCount = new Set(dayEntries.map((w) => w.date)).size;
+          value = daysCount > 0 ? (total / daysCount) / 100 : 0;
+          pointColor = value > 0 ? getProgressColor(Math.min((value * 100 / waterGoalMl) * 100, 100)) : "#9CA3AF";
         } else if (trendMetric === "sleep") {
           const monthSleeps = sleepLogs.filter((s) => s.date.startsWith(monthStr));
           const avg = monthSleeps.reduce((s, sl) => s + calcSleepHoursNum(sl.bedtime, sl.wakeTime), 0) / (monthSleeps.length || 1);
           value = monthSleeps.length > 0 ? avg : 0;
+          pointColor = value > 0 ? getProgressColor(Math.min((value / sleepGoalHours) * 100, 100)) : "#9CA3AF";
         } else if (trendMetric === "stoolCount") {
           const monthBowels = bowelLogs.filter((b) => b.date.startsWith(monthStr));
-          value = monthBowels.reduce((s, b) => s + (b.count ?? 0), 0) / (monthBowels.length || 1);
+          value = monthBowels.length > 0 ? monthBowels.reduce((s, b) => s + (b.count ?? 0), 0) / monthBowels.length : 0;
+          pointColor = getStoolCountColor(Math.round(value));
         } else if (trendMetric === "stoolType") {
           const monthBowels = bowelLogs.filter((b) => b.date.startsWith(monthStr));
           if (monthBowels.length > 0) {
             const avg = monthBowels.reduce((s, b) => s + (b.color === "green" ? 1 : b.color === "yellow" ? 2 : 3), 0) / monthBowels.length;
             value = avg;
+            const avgColor: BowelColor = avg <= 1.5 ? "green" : avg <= 2.5 ? "yellow" : "red";
+            pointColor = getStoolTypeColor(avgColor);
           }
+        } else if (trendMetric === "weight") {
+          const monthWeights = weightLogs.filter((w) => w.date.startsWith(monthStr));
+          value = monthWeights.length > 0 ? monthWeights.reduce((s, w) => s + w.weightKg, 0) / monthWeights.length : 0;
+          pointColor = value > 0 ? "#7C5CBF" : "#9CA3AF";
         }
-        return { label: MONTHS_SHORT[m], value };
+        return { label: MONTHS_SHORT[m], value, pointColor };
       });
     }
   };
 
-  const trendData = useMemo(() => getTrendData(), [trendMetric, trendPeriod, waterEntries, sleepLogs, bowelLogs, viewYear]);
+  const trendData = useMemo(() => getTrendData(), [trendMetric, trendPeriod, waterEntries, sleepLogs, bowelLogs, weightLogs, viewYear, waterGoalMl, sleepGoalHours, weightGoalKg]);
 
-  const metricColor = trendMetric === "water" ? "#1B8A7B" : trendMetric === "sleep" ? "#C4881A" : trendMetric === "stoolCount" ? "#2E1B5E" : "#10B981";
-  const metricUnit = trendMetric === "water" ? "×100ml" : trendMetric === "sleep" ? "hrs" : trendMetric === "stoolCount" ? "count" : "level";
+  const metricColor = trendMetric === "water" ? "#1B8A7B"
+    : trendMetric === "sleep" ? "#C4881A"
+    : trendMetric === "stoolCount" ? "#2E1B5E"
+    : trendMetric === "stoolType" ? "#10B981"
+    : "#7C5CBF";
+  const metricUnit = trendMetric === "water" ? "×100ml"
+    : trendMetric === "sleep" ? "hrs"
+    : trendMetric === "stoolCount" ? "BMs"
+    : trendMetric === "stoolType" ? "level"
+    : "kg";
+
+  const METRIC_LABELS: Record<TrendMetric, string> = {
+    water: "Water",
+    sleep: "Sleep",
+    stoolCount: "BM Count",
+    stoolType: "BM",
+    weight: "Weight",
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -281,22 +363,6 @@ export default function CalendarScreen() {
           <Text style={styles.logEntryBtnText}>Log Entry for {selectedDate === todayStr ? "Today" : selectedDate.slice(5).replace("-", "/")}</Text>
         </TouchableOpacity>
 
-        {/* Photo strip */}
-        {viewMode === "monthly" && monthPhotos.length > 0 && (
-          <View style={styles.photoStrip}>
-            <Text style={[styles.photoStripTitle, { color: colors.textSecondary }]}>Photos this month</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {monthPhotos.map((p, idx) => (
-                <TouchableOpacity key={`${p.uri}-${idx}`} style={styles.photoThumbWrap} onPress={() => openPhotoViewer(monthPhotos.map((x) => x.uri), idx)}>
-                  <Image source={{ uri: p.uri }} style={styles.photoThumb} />
-                  <View style={[styles.photoThumbDot, { backgroundColor: bowelDotColor(p.color as BowelColor) }]} />
-                  <Text style={[styles.photoThumbDate, { color: colors.placeholder }]}>{p.date.slice(5).replace("-", "/")}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
         {/* ── WELLNESS TREND ── */}
         <View style={[styles.trendCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
           <Text style={[styles.trendTitle, { color: colors.text }]}>Wellness Trend</Text>
@@ -304,9 +370,8 @@ export default function CalendarScreen() {
           {/* Metric filter */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
             <View style={styles.chipRow}>
-              {(["water", "sleep", "stoolCount", "stoolType"] as TrendMetric[]).map((m) => {
-                const labels: Record<TrendMetric, string> = { water: "Water", sleep: "Sleep", stoolCount: "Stool Count", stoolType: "Stool Type" };
-                const metColors: Record<TrendMetric, string> = { water: "#1B8A7B", sleep: "#C4881A", stoolCount: "#2E1B5E", stoolType: "#10B981" };
+              {(["water", "sleep", "stoolCount", "stoolType", "weight"] as TrendMetric[]).map((m) => {
+                const metColors: Record<TrendMetric, string> = { water: "#1B8A7B", sleep: "#C4881A", stoolCount: "#2E1B5E", stoolType: "#10B981", weight: "#7C5CBF" };
                 const active = trendMetric === m;
                 return (
                   <TouchableOpacity
@@ -314,7 +379,7 @@ export default function CalendarScreen() {
                     style={[styles.chip, { backgroundColor: active ? metColors[m] : colors.sectionBg }]}
                     onPress={() => setTrendMetric(m)}
                   >
-                    <Text style={[styles.chipText, { color: active ? "#fff" : colors.textSecondary }]}>{labels[m]}</Text>
+                    <Text style={[styles.chipText, { color: active ? "#fff" : colors.textSecondary }]}>{METRIC_LABELS[m]}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -338,7 +403,42 @@ export default function CalendarScreen() {
 
           {/* Line chart */}
           <LineChart data={trendData} color={metricColor} unit={metricUnit} colors={colors} />
+
+          {/* Color legend for stool metrics */}
+          {trendMetric === "stoolCount" && (
+            <View style={styles.legendRow}>
+              <LegendDot color="#10B981" label="1 BM (normal)" />
+              <LegendDot color="#F97316" label="2–3 BMs" />
+              <LegendDot color="#EF4444" label="4+ BMs" />
+            </View>
+          )}
+          {trendMetric === "stoolType" && (
+            <View style={styles.legendRow}>
+              <LegendDot color="#10B981" label="Normal" />
+              <LegendDot color="#F97316" label="Moderate" />
+              <LegendDot color="#EF4444" label="Severe" />
+            </View>
+          )}
         </View>
+
+        {/* Photos for selected day */}
+        {selectedDayPhotos.length > 0 && (
+          <View style={[styles.photoStrip, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+            <Text style={[styles.photoStripTitle, { color: colors.text }]}>
+              Photos · {selectedDate === todayStr ? "Today" : selectedDate.slice(5).replace("-", "/")}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+              {selectedDayPhotos.map((uri, idx) => (
+                <TouchableOpacity key={`${uri}-${idx}`} style={styles.photoThumbWrap} onPress={() => openPhotoViewer(selectedDayPhotos, idx)}>
+                  <Image source={{ uri }} style={styles.photoThumb} />
+                  {selectedBowel && (
+                    <View style={[styles.photoThumbDot, { backgroundColor: bowelDotColor(selectedBowel.color as BowelColor) }]} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* ── DAILY LOG ── */}
         <View style={[styles.dailyLogCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
@@ -351,7 +451,7 @@ export default function CalendarScreen() {
               <View style={[styles.bowelDot, { backgroundColor: bowelDotColor(selectedBowel.color) }]} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.dailyLabel, { color: colors.text }]}>
-                  Stool — {selectedBowel.color === "green" ? "Normal" : selectedBowel.color === "yellow" ? "Moderate" : "Severe"}
+                  BM — {selectedBowel.color === "green" ? "Normal" : selectedBowel.color === "yellow" ? "Moderate" : "Severe"}
                 </Text>
                 {(selectedBowel.count ?? 0) > 0 && (
                   <Text style={[styles.dailySub, { color: colors.textSecondary }]}>{selectedBowel.count} movement{selectedBowel.count !== 1 ? "s" : ""}</Text>
@@ -362,7 +462,7 @@ export default function CalendarScreen() {
           ) : (
             <TouchableOpacity style={[styles.dailyRowEmpty, { borderColor: colors.border }]} onPress={() => openDaySheet(selectedDate)}>
               <Feather name="plus-circle" size={14} color={colors.placeholder} />
-              <Text style={[styles.dailyEmptyText, { color: colors.placeholder }]}>Log stool entry</Text>
+              <Text style={[styles.dailyEmptyText, { color: colors.placeholder }]}>Log bowel movement</Text>
             </TouchableOpacity>
           )}
 
@@ -408,6 +508,20 @@ export default function CalendarScreen() {
               <Text style={[styles.dailyEmptyText, { color: colors.placeholder }]}>No sleep logged</Text>
             </View>
           )}
+
+          {selectedWeight ? (
+            <View style={[styles.dailyRow, { backgroundColor: colors.sectionBg }]}>
+              <Feather name="trending-up" size={16} color="#7C5CBF" />
+              <Text style={[styles.dailyLabel, { color: colors.text, marginLeft: 10 }]}>
+                Weight — {selectedWeight.toFixed(1)} kg
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.dailyRowEmpty, { borderColor: colors.border }]}>
+              <Feather name="trending-up" size={14} color={colors.placeholder} />
+              <Text style={[styles.dailyEmptyText, { color: colors.placeholder }]}>No weight logged</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -441,7 +555,7 @@ export default function CalendarScreen() {
                     ))}
                   </View>
 
-                  <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>Bowel Movement Count</Text>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 12 }]}>BM Count</Text>
                   <View style={[styles.countRow, { backgroundColor: colors.sectionBg }]}>
                     <TouchableOpacity
                       style={[styles.countBtn, { backgroundColor: colors.border }]}
@@ -455,7 +569,6 @@ export default function CalendarScreen() {
                       onChangeText={(v) => setBowelCount(v.replace(/[^0-9]/g, ""))}
                       keyboardType="numeric"
                       maxLength={2}
-                      selectTextOnFocus
                     />
                     <TouchableOpacity
                       style={[styles.countBtn, { backgroundColor: colors.teal }]}
@@ -463,7 +576,7 @@ export default function CalendarScreen() {
                     >
                       <Feather name="plus" size={18} color="#fff" />
                     </TouchableOpacity>
-                    <Text style={[styles.countLabel, { color: colors.textSecondary }]}>movements today</Text>
+                    <Text style={[styles.countLabel, { color: colors.textSecondary }]}>bowel movements today</Text>
                   </View>
 
                   <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple, marginBottom: 16 }]} onPress={handleSaveBowelLog}>
@@ -525,7 +638,16 @@ export default function CalendarScreen() {
   );
 }
 
-function LineChart({ data, color, unit, colors }: { data: { label: string; value: number }[]; color: string; unit: string; colors: any }) {
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} />
+      <Text style={{ fontSize: 10, color: "#6B7280" }}>{label}</Text>
+    </View>
+  );
+}
+
+function LineChart({ data, color, unit, colors }: { data: { label: string; value: number; pointColor: string }[]; color: string; unit: string; colors: any }) {
   const W = 300;
   const H = 120;
   const padL = 28;
@@ -541,6 +663,7 @@ function LineChart({ data, color, unit, colors }: { data: { label: string; value
     y: padT + plotH - (d.value / maxVal) * plotH,
     label: d.label,
     value: d.value,
+    pointColor: d.pointColor,
   }));
 
   const polylinePoints = pts.map((p) => `${p.x},${p.y}`).join(" ");
@@ -563,7 +686,7 @@ function LineChart({ data, color, unit, colors }: { data: { label: string; value
         )}
         {pts.map((p, i) => (
           <React.Fragment key={i}>
-            <Circle cx={p.x} cy={p.y} r={3.5} fill={color} />
+            <Circle cx={p.x} cy={p.y} r={4} fill={p.value > 0 ? p.pointColor : colors.border ?? "#E5E5E5"} />
             <SvgText x={p.x} y={H - 6} fontSize={8} fill={colors.textSecondary ?? "#888"} textAnchor="middle">{p.label}</SvgText>
           </React.Fragment>
         ))}
@@ -722,12 +845,11 @@ const styles = StyleSheet.create({
   yearDot: { width: 6, height: 6, borderRadius: 3 },
   logEntryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 14 },
   logEntryBtnText: { color: "#fff", fontSize: 15, fontWeight: "600" as const },
-  photoStrip: { marginHorizontal: 16, marginBottom: 8 },
-  photoStripTitle: { fontSize: 12, fontWeight: "600" as const, marginBottom: 8 },
+  photoStrip: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  photoStripTitle: { fontSize: 14, fontWeight: "700" as const },
   photoThumbWrap: { marginRight: 10, alignItems: "center" },
-  photoThumb: { width: 60, height: 60, borderRadius: 10 },
+  photoThumb: { width: 70, height: 70, borderRadius: 12 },
   photoThumbDot: { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
-  photoThumbDate: { fontSize: 10, marginTop: 2 },
   trendCard: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
   trendTitle: { fontSize: 17, fontWeight: "700" as const, marginBottom: 12 },
   chipRow: { flexDirection: "row", gap: 8 },
@@ -736,6 +858,7 @@ const styles = StyleSheet.create({
   periodRow: { flexDirection: "row", borderRadius: 10, padding: 4, marginBottom: 8 },
   periodBtn: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: "center" },
   periodBtnText: { fontSize: 12, fontWeight: "600" as const },
+  legendRow: { flexDirection: "row", gap: 12, marginTop: 8, flexWrap: "wrap", justifyContent: "center" },
   dailyLogCard: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
   dailyRow: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, marginBottom: 8 },
   dailyRowEmpty: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", marginBottom: 8 },
