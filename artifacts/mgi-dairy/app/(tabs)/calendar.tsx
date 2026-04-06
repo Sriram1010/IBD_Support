@@ -11,8 +11,27 @@ import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
-import { useApp, BowelLog } from "@/context/AppContext";
+import { useApp, BowelLog, MealEntry } from "@/context/AppContext";
 import { calcSleepHours, calcSleepHoursNum } from "@/hooks/useDateString";
+import { SimpleTimeInput, parse24h, to24h } from "@/components/WheelPicker";
+
+function CalSimple24hInput({ value, onChange, colors }: { value: string; onChange: (v: string) => void; colors: any }) {
+  const [text, setText] = React.useState(value || "07:00");
+  React.useEffect(() => { setText(value); }, [value]);
+  const tryEmit = (t: string) => {
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (m) {
+      const h = parseInt(m[1], 10); const mn = parseInt(m[2], 10);
+      if (h >= 0 && h <= 23 && mn >= 0 && mn <= 59)
+        onChange(`${String(h).padStart(2, "0")}:${String(mn).padStart(2, "0")}`);
+    }
+  };
+  return (
+    <TextInput value={text} onChangeText={(t) => { setText(t); tryEmit(t); }}
+      placeholder="22:00" keyboardType="numbers-and-punctuation" maxLength={5}
+      style={{ flex: 1, height: 32, borderRadius: 8, paddingHorizontal: 10, fontSize: 14, fontWeight: "600" as const, backgroundColor: colors.inputBg, color: colors.text }} />
+  );
+}
 
 type ViewMode = "monthly" | "weekly" | "yearly";
 type BowelColor = "red" | "yellow" | "green";
@@ -84,15 +103,19 @@ export default function CalendarScreen() {
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [trendMetric, setTrendMetric] = useState<TrendMetric>("water");
-  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>("weekly");
+  const trendPeriod: TrendPeriod = viewMode;
 
   const [activeEditSheet, setActiveEditSheet] = useState<"water" | "sleep" | "weight" | "meals" | null>(null);
   const [editWaterAmount, setEditWaterAmount] = useState("250");
+  const [editingWaterId, setEditingWaterId] = useState<string | null>(null);
   const [editSleepBed, setEditSleepBed] = useState("22:00");
   const [editSleepWake, setEditSleepWake] = useState("07:00");
+  const [calSleepFmt, setCalSleepFmt] = useState<"12h" | "24h">("12h");
   const [editWeightKg, setEditWeightKg] = useState("");
   const [mealFormTime, setMealFormTime] = useState("08:00");
   const [mealFormFood, setMealFormFood] = useState("");
+  const [calMealFmt, setCalMealFmt] = useState<"12h" | "24h">("12h");
+  const [mealFormImages, setMealFormImages] = useState<string[]>([]);
   const [showMealAddForm, setShowMealAddForm] = useState(false);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
 
@@ -100,7 +123,7 @@ export default function CalendarScreen() {
     meals, waterEntries, sleepLogs, bowelLogs, weightLogs,
     saveBowelLog, deleteBowelPhoto,
     waterGoalMl, sleepGoalHours, weightGoalKg,
-    addWaterEntry, deleteWaterEntry,
+    addWaterEntry, deleteWaterEntry, updateWaterEntry,
     addSleepLog, updateSleepLog,
     saveWeightEntry,
     addMeal, updateMeal, deleteMeal,
@@ -150,8 +173,18 @@ export default function CalendarScreen() {
   const handleAddWater = async () => {
     const ml = parseFloat(editWaterAmount) || 0;
     if (ml <= 0) return;
-    await addWaterEntry({ date: selectedDate, amountMl: ml, time: new Date().toTimeString().slice(0, 5) });
+    if (editingWaterId) {
+      await updateWaterEntry(editingWaterId, ml);
+      setEditingWaterId(null);
+    } else {
+      await addWaterEntry({ date: selectedDate, amountMl: ml, time: new Date().toTimeString().slice(0, 5) });
+    }
     setEditWaterAmount("250");
+  };
+
+  const startEditWater = (id: string, amountMl: number) => {
+    setEditingWaterId(id);
+    setEditWaterAmount(String(amountMl));
   };
 
   const handleSaveSleep = async () => {
@@ -175,21 +208,45 @@ export default function CalendarScreen() {
   const handleSaveMeal = async () => {
     if (!mealFormFood.trim()) return;
     if (editingMealId) {
-      await updateMeal(editingMealId, { time: mealFormTime, foodDetails: mealFormFood });
+      await updateMeal(editingMealId, { time: mealFormTime, foodDetails: mealFormFood, images: mealFormImages.length > 0 ? mealFormImages : undefined });
     } else {
-      await addMeal({ date: selectedDate, time: mealFormTime, foodDetails: mealFormFood });
+      await addMeal({ date: selectedDate, time: mealFormTime, foodDetails: mealFormFood, images: mealFormImages.length > 0 ? mealFormImages : undefined });
     }
     setMealFormFood("");
     setMealFormTime("08:00");
+    setMealFormImages([]);
     setEditingMealId(null);
     setShowMealAddForm(false);
   };
 
-  const openEditMeal = (meal: any) => {
+  const openEditMeal = (meal: MealEntry) => {
     setEditingMealId(meal.id);
     setMealFormTime(meal.time);
     setMealFormFood(meal.foodDetails);
+    setMealFormImages(meal.images ?? (meal.imagePath ? [meal.imagePath] : []));
     setShowMealAddForm(true);
+  };
+
+  const handleAddMealPhoto = () => {
+    Alert.alert("Add Photo", "Choose source", [
+      {
+        text: "Camera", onPress: async () => {
+          const cp = await ImagePicker.requestCameraPermissionsAsync();
+          if (cp.status !== "granted") { Alert.alert("Permission needed", "Camera access required."); return; }
+          const r = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+          if (!r.canceled && r.assets[0]) setMealFormImages((p) => [...p, r.assets[0].uri]);
+        },
+      },
+      {
+        text: "Photo Library", onPress: async () => {
+          const gp = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (gp.status !== "granted") { Alert.alert("Permission needed", "Library access required."); return; }
+          const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, allowsMultipleSelection: true });
+          if (!r.canceled) setMealFormImages((p) => [...p, ...r.assets.map((a) => a.uri)]);
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   const handleSaveBowelLog = async () => {
@@ -409,13 +466,6 @@ export default function CalendarScreen() {
               })}
             </View>
           </ScrollView>
-          <View style={[styles.periodRow, { backgroundColor: colors.sectionBg }]}>
-            {(["weekly", "monthly", "yearly"] as TrendPeriod[]).map((p) => (
-              <TouchableOpacity key={p} style={[styles.periodBtn, trendPeriod === p && { backgroundColor: colors.purple }]} onPress={() => setTrendPeriod(p)}>
-                <Text style={[styles.periodBtnText, { color: trendPeriod === p ? "#fff" : colors.textSecondary }]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
           <LineChart data={trendData} color={metricColor} unit={metricUnit} colors={colors} scrollable={trendPeriod === "monthly"} />
           {trendMetric === "stoolType" && (
             <View style={styles.legendRow}>
@@ -611,10 +661,13 @@ export default function CalendarScreen() {
                         <View style={{ marginBottom: 16 }}>
                           <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginBottom: 8 }]}>LOGGED ENTRIES</Text>
                           {waterEntries.filter((w) => w.date === selectedDate).map((w) => (
-                            <View key={w.id} style={[styles.dailyRow, { backgroundColor: colors.sectionBg, marginBottom: 6 }]}>
+                            <View key={w.id} style={[styles.dailyRow, { backgroundColor: editingWaterId === w.id ? "#1B8A7B22" : colors.sectionBg, marginBottom: 6, borderWidth: editingWaterId === w.id ? 1 : 0, borderColor: "#1B8A7B" }]}>
                               <Feather name="droplet" size={14} color="#1B8A7B" />
                               <Text style={[styles.dailyLabel, { color: colors.text, marginLeft: 8, flex: 1 }]}>{w.amountMl} ml{w.time ? `  ·  ${w.time}` : ""}</Text>
-                              <TouchableOpacity onPress={() => deleteWaterEntry(w.id)} style={{ padding: 6 }}>
+                              <TouchableOpacity onPress={() => startEditWater(w.id, w.amountMl)} style={{ padding: 6 }}>
+                                <Feather name="edit-2" size={14} color={colors.tint} />
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={() => { if (editingWaterId === w.id) setEditingWaterId(null); deleteWaterEntry(w.id); }} style={{ padding: 6 }}>
                                 <Feather name="trash-2" size={14} color="#EF4444" />
                               </TouchableOpacity>
                             </View>
@@ -624,7 +677,7 @@ export default function CalendarScreen() {
                           </Text>
                         </View>
                       )}
-                      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>ADD WATER (ml)</Text>
+                      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{editingWaterId ? "EDIT ENTRY (ml)" : "ADD WATER (ml)"}</Text>
                       <View style={[styles.countRow, { backgroundColor: colors.sectionBg }]}>
                         <TouchableOpacity style={[styles.countBtn, { backgroundColor: colors.border }]} onPress={() => setEditWaterAmount((v) => String(Math.max(50, (parseFloat(v) || 0) - 50)))}>
                           <Feather name="minus" size={18} color={colors.text} />
@@ -642,40 +695,46 @@ export default function CalendarScreen() {
                           </TouchableOpacity>
                         ))}
                       </View>
-                      <TouchableOpacity style={[styles.saveBtn, { backgroundColor: "#1B8A7B" }]} onPress={handleAddWater}>
-                        <Text style={styles.saveText}>Add Entry</Text>
-                      </TouchableOpacity>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        {editingWaterId && (
+                          <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg, flex: 1 }]} onPress={() => { setEditingWaterId(null); setEditWaterAmount("250"); }}>
+                            <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel Edit</Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: "#1B8A7B", flex: 1 }]} onPress={handleAddWater}>
+                          <Text style={styles.saveText}>{editingWaterId ? "Update Entry" : "Add Entry"}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   )}
 
                   {/* SLEEP */}
                   {activeEditSheet === "sleep" && (
                     <View>
-                      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>BEDTIME (HH:MM — 24h)</Text>
-                      <View style={[styles.countRow, { backgroundColor: colors.sectionBg }]}>
-                        <Feather name="moon" size={16} color="#C4881A" style={{ marginLeft: 8 }} />
-                        <TextInput
-                          style={[styles.countInput, { color: colors.text, fontSize: 18, minWidth: 80 }]}
-                          value={editSleepBed}
-                          onChangeText={setEditSleepBed}
-                          placeholder="22:00"
-                          placeholderTextColor={colors.placeholder}
-                          keyboardType="numbers-and-punctuation"
-                          maxLength={5}
-                        />
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                        <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginBottom: 0 }]}>TIME FORMAT</Text>
+                        <View style={[styles.toggleGroup, { borderColor: colors.border, borderWidth: 1 }]}>
+                          <TouchableOpacity style={[styles.toggleBtn, calSleepFmt === "12h" && { backgroundColor: colors.teal }]} onPress={() => setCalSleepFmt("12h")}>
+                            <Text style={[styles.toggleBtnText, { color: calSleepFmt === "12h" ? "#fff" : colors.textSecondary }]}>12 HR</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.toggleBtn, calSleepFmt === "24h" && { backgroundColor: colors.teal }]} onPress={() => setCalSleepFmt("24h")}>
+                            <Text style={[styles.toggleBtnText, { color: calSleepFmt === "24h" ? "#fff" : colors.textSecondary }]}>24 HR</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                      <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 8 }]}>WAKE TIME (HH:MM — 24h)</Text>
-                      <View style={[styles.countRow, { backgroundColor: colors.sectionBg }]}>
-                        <Feather name="sun" size={16} color="#F97316" style={{ marginLeft: 8 }} />
-                        <TextInput
-                          style={[styles.countInput, { color: colors.text, fontSize: 18, minWidth: 80 }]}
-                          value={editSleepWake}
-                          onChangeText={setEditSleepWake}
-                          placeholder="07:00"
-                          placeholderTextColor={colors.placeholder}
-                          keyboardType="numbers-and-punctuation"
-                          maxLength={5}
-                        />
+                      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>BEDTIME</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+                        <Feather name="moon" size={16} color="#C4881A" style={{ marginRight: 10 }} />
+                        {calSleepFmt === "12h"
+                          ? <SimpleTimeInput value={editSleepBed} onChange={setEditSleepBed} colors={colors} />
+                          : <CalSimple24hInput value={editSleepBed} onChange={setEditSleepBed} colors={colors} />}
+                      </View>
+                      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>WAKE TIME</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                        <Feather name="sun" size={16} color="#F97316" style={{ marginRight: 10 }} />
+                        {calSleepFmt === "12h"
+                          ? <SimpleTimeInput value={editSleepWake} onChange={setEditSleepWake} colors={colors} />
+                          : <CalSimple24hInput value={editSleepWake} onChange={setEditSleepWake} colors={colors} />}
                       </View>
                       {editSleepBed && editSleepWake && (
                         <Text style={[styles.dailySub, { color: colors.teal, marginBottom: 12 }]}>
@@ -739,20 +798,25 @@ export default function CalendarScreen() {
                       )}
                       {showMealAddForm && (
                         <View style={{ marginTop: 12 }}>
-                          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{editingMealId ? "EDIT MEAL" : "NEW MEAL"}</Text>
-                          <View style={[styles.countRow, { backgroundColor: colors.sectionBg, marginBottom: 8 }]}>
-                            <Feather name="clock" size={14} color={colors.textSecondary} style={{ marginLeft: 8 }} />
-                            <TextInput
-                              style={[styles.countInput, { color: colors.text, fontSize: 16, minWidth: 70 }]}
-                              value={mealFormTime}
-                              onChangeText={setMealFormTime}
-                              placeholder="08:00"
-                              placeholderTextColor={colors.placeholder}
-                              keyboardType="numbers-and-punctuation"
-                              maxLength={5}
-                            />
+                          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                            <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginBottom: 0 }]}>{editingMealId ? "EDIT MEAL" : "NEW MEAL"}</Text>
+                            <View style={[styles.toggleGroup, { borderColor: colors.border, borderWidth: 1 }]}>
+                              <TouchableOpacity style={[styles.toggleBtn, calMealFmt === "12h" && { backgroundColor: colors.teal }]} onPress={() => setCalMealFmt("12h")}>
+                                <Text style={[styles.toggleBtnText, { color: calMealFmt === "12h" ? "#fff" : colors.textSecondary }]}>12h</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity style={[styles.toggleBtn, calMealFmt === "24h" && { backgroundColor: colors.teal }]} onPress={() => setCalMealFmt("24h")}>
+                                <Text style={[styles.toggleBtnText, { color: calMealFmt === "24h" ? "#fff" : colors.textSecondary }]}>24h</Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
-                          <View style={[{ backgroundColor: colors.sectionBg, borderRadius: 12, padding: 12, marginBottom: 8 }]}>
+                          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>MEAL TIME</Text>
+                          <View style={[styles.modalTimeRow, { marginBottom: 10 }]}>
+                            {calMealFmt === "12h"
+                              ? <SimpleTimeInput value={mealFormTime} onChange={setMealFormTime} colors={colors} />
+                              : <CalSimple24hInput value={mealFormTime} onChange={setMealFormTime} colors={colors} />}
+                          </View>
+                          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>FOOD DETAILS</Text>
+                          <View style={[{ backgroundColor: colors.sectionBg, borderRadius: 12, padding: 12, marginBottom: 10 }]}>
                             <TextInput
                               style={[{ color: colors.text, fontSize: 14, minHeight: 60 }]}
                               value={mealFormFood}
@@ -762,8 +826,24 @@ export default function CalendarScreen() {
                               multiline
                             />
                           </View>
+                          <TouchableOpacity style={[styles.photoAddBtn, { backgroundColor: colors.sectionBg, borderColor: colors.border, marginBottom: 8 }]} onPress={handleAddMealPhoto}>
+                            <Feather name="camera" size={16} color={colors.gold} />
+                            <Text style={[styles.photoAddText, { color: colors.gold }]}>Add Food Photo</Text>
+                          </TouchableOpacity>
+                          {mealFormImages.length > 0 && (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                              {mealFormImages.map((uri, idx) => (
+                                <View key={`${uri}-${idx}`} style={{ marginRight: 8 }}>
+                                  <Image source={{ uri }} style={styles.bigPhotoThumb} />
+                                  <TouchableOpacity style={styles.photoDeleteBtn} onPress={() => setMealFormImages((p) => p.filter((_, i) => i !== idx))}>
+                                    <Feather name="x" size={12} color="#fff" />
+                                  </TouchableOpacity>
+                                </View>
+                              ))}
+                            </ScrollView>
+                          )}
                           <View style={{ flexDirection: "row", gap: 8 }}>
-                            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg, flex: 1 }]} onPress={() => { setShowMealAddForm(false); setEditingMealId(null); }}>
+                            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg, flex: 1 }]} onPress={() => { setShowMealAddForm(false); setEditingMealId(null); setMealFormImages([]); }}>
                               <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.tint, flex: 1 }]} onPress={handleSaveMeal}>
@@ -1058,4 +1138,8 @@ const styles = StyleSheet.create({
   viewerNavBtn: { padding: 8 },
   viewerCounter: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
   closeBtn: { position: "absolute", top: 60, right: 20, width: 44, height: 44, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  toggleGroup: { flexDirection: "row", borderRadius: 8, overflow: "hidden" },
+  toggleBtn: { paddingHorizontal: 12, paddingVertical: 6 },
+  toggleBtnText: { fontSize: 13, fontWeight: "600" as const },
+  modalTimeRow: { flexDirection: "row", alignItems: "center" },
 });
