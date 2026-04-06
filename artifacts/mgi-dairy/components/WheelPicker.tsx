@@ -221,10 +221,10 @@ export function SimpleTimeInput({
         maxLength={5}
         style={{
           flex: 1,
-          height: 52,
-          borderRadius: 10,
-          paddingHorizontal: 16,
-          fontSize: 24,
+          height: 32,
+          borderRadius: 8,
+          paddingHorizontal: 10,
+          fontSize: 14,
           fontWeight: "600" as const,
           backgroundColor: colors.inputBg,
           color: colors.text,
@@ -233,7 +233,7 @@ export function SimpleTimeInput({
       <View
         style={{
           flexDirection: "row",
-          borderRadius: 10,
+          borderRadius: 8,
           overflow: "hidden",
           borderWidth: 1,
           borderColor: colors.border,
@@ -241,25 +241,25 @@ export function SimpleTimeInput({
       >
         <TouchableOpacity
           style={{
-            paddingHorizontal: 18,
-            paddingVertical: 14,
+            paddingHorizontal: 11,
+            paddingVertical: 8,
             backgroundColor: period === "AM" ? colors.teal : colors.sectionBg,
           }}
           onPress={() => { setPeriod("AM"); tryEmit(text, "AM"); }}
         >
-          <Text style={{ color: period === "AM" ? "#fff" : colors.textSecondary, fontWeight: "600" as const, fontSize: 15 }}>
+          <Text style={{ color: period === "AM" ? "#fff" : colors.textSecondary, fontWeight: "600" as const, fontSize: 9 }}>
             AM
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={{
-            paddingHorizontal: 18,
-            paddingVertical: 14,
+            paddingHorizontal: 11,
+            paddingVertical: 8,
             backgroundColor: period === "PM" ? colors.teal : colors.sectionBg,
           }}
           onPress={() => { setPeriod("PM"); tryEmit(text, "PM"); }}
         >
-          <Text style={{ color: period === "PM" ? "#fff" : colors.textSecondary, fontWeight: "600" as const, fontSize: 15 }}>
+          <Text style={{ color: period === "PM" ? "#fff" : colors.textSecondary, fontWeight: "600" as const, fontSize: 9 }}>
             PM
           </Text>
         </TouchableOpacity>

@@ -7,7 +7,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import { useAppContext } from "@/context/AppContext";
+import { useApp as useAppContext } from "@/context/AppContext";
 import Colors from "@/constants/colors";
 
 function getMondayOfWeek(date: Date): Date {

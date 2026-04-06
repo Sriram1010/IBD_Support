@@ -85,7 +85,7 @@ function Simple24hInput({ value, onChange, colors }: { value: string; onChange: 
   return (
     <TextInput value={text} onChangeText={(t) => { setText(t); tryEmit(t); }}
       placeholder="22:00" keyboardType="numbers-and-punctuation" maxLength={5}
-      style={{ flex: 1, height: 52, borderRadius: 10, paddingHorizontal: 16, fontSize: 24, fontWeight: "600" as const, backgroundColor: colors.inputBg, color: colors.text }} />
+      style={{ flex: 1, height: 32, borderRadius: 8, paddingHorizontal: 10, fontSize: 14, fontWeight: "600" as const, backgroundColor: colors.inputBg, color: colors.text }} />
   );
 }
 
@@ -464,21 +464,9 @@ export default function DiaryScreen() {
             ) : (
               <View>
                 <View style={[styles.tableHeader, { borderBottomColor: colors.border }]}>
-                  <View style={styles.tableHeaderLeft}>
-                    <Text style={[styles.thTime, { color: colors.textSecondary }]}>Time</Text>
-                    <Text style={[styles.thFood, { color: colors.textSecondary }]}>Food & Nutrition</Text>
-                  </View>
-                  <View style={styles.tableHeaderRight}>
-                    <Text style={[styles.thPhoto, { color: colors.textSecondary }]}>Photos</Text>
-                    <View style={[styles.fmtToggle, { borderColor: colors.border, borderWidth: 1 }]}>
-                      <TouchableOpacity style={[styles.fmtBtn, mealTimeFormat === "12h" && { backgroundColor: colors.teal }]} onPress={() => setMealTimeFormat("12h")}>
-                        <Text style={[styles.fmtBtnText, { color: mealTimeFormat === "12h" ? "#fff" : colors.textSecondary }]}>12h</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.fmtBtn, mealTimeFormat === "24h" && { backgroundColor: colors.teal }]} onPress={() => setMealTimeFormat("24h")}>
-                        <Text style={[styles.fmtBtnText, { color: mealTimeFormat === "24h" ? "#fff" : colors.textSecondary }]}>24h</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+                  <Text style={[styles.thTime, { color: colors.textSecondary }]}>Time</Text>
+                  <Text style={[styles.thFood, { color: colors.textSecondary }]}>Food & Nutrition</Text>
+                  <Text style={[styles.thPhoto, { color: colors.textSecondary }]}>Photos</Text>
                 </View>
                 {todayMeals.map((meal) => {
                   const imgs = getMealImages(meal);
@@ -1138,7 +1126,7 @@ const styles = StyleSheet.create({
   addBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   emptyState: { alignItems: "center", paddingVertical: 20, gap: 8 },
   emptyText: { fontSize: 14 },
-  tableHeader: { flexDirection: "row", paddingBottom: 8, borderBottomWidth: 1, alignItems: "center", justifyContent: "space-between" },
+  tableHeader: { flexDirection: "row", paddingBottom: 8, borderBottomWidth: 1, alignItems: "center", gap: 6 },
   tableHeaderLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
   tableHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   thTime: { width: 52, fontSize: 11, fontWeight: "600" as const },
