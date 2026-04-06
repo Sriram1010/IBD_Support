@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useRef } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Modal, Alert, Platform, useColorScheme,
@@ -8,12 +8,12 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { useAppContext } from "@/context/AppContext";
-import { useColors } from "@/constants/colors";
+import Colors from "@/constants/colors";
 
 function getMondayOfWeek(date: Date): Date {
   const d = new Date(date);
   const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1 - day);
+  const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -32,7 +32,7 @@ const DAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() === "dark";
-  const colors = useColors(isDark);
+  const colors = Colors[isDark ? "dark" : "light"];
   const { menuItems, addMenuItem, updateMenuItem, deleteMenuItem, getWeekMenuItems } = useAppContext();
 
   const [selectedDay, setSelectedDay] = useState(0);
@@ -75,6 +75,7 @@ export default function MenuScreen() {
     setFormNotes("");
     setFormLinkUrl("");
     setFormLinkLabel("");
+    setSelectedDay(0);
     setShowModal(true);
   };
 
@@ -82,6 +83,7 @@ export default function MenuScreen() {
     const item = menuItems.find((m) => m.id === id);
     if (!item) return;
     setEditingId(id);
+    setSelectedDay(item.dayOfWeek);
     setFormTime(item.time);
     setFormRecipe(item.recipe);
     setFormNotes(item.notes ?? "");
@@ -91,7 +93,10 @@ export default function MenuScreen() {
   };
 
   const handleSave = async () => {
-    if (!formRecipe.trim()) { Alert.alert("Recipe required", "Please enter a recipe or meal name."); return; }
+    if (!formRecipe.trim()) {
+      Alert.alert("Recipe required", "Please enter a recipe or meal name.");
+      return;
+    }
     const links = formLinkUrl.trim() ? [{ url: formLinkUrl.trim(), label: formLinkLabel.trim() || undefined }] : [];
     const data = {
       weekStart,
@@ -101,11 +106,8 @@ export default function MenuScreen() {
       notes: formNotes.trim() || undefined,
       links,
     };
-    if (editingId) {
-      await updateMenuItem(editingId, data);
-    } else {
-      await addMenuItem(data);
-    }
+    if (editingId) await updateMenuItem(editingId, data);
+    else await addMenuItem(data);
     setShowModal(false);
   };
 
@@ -118,9 +120,7 @@ export default function MenuScreen() {
 
   const openLink = (url: string) => {
     let safeUrl = url.trim();
-    if (!safeUrl.startsWith("http://") && !safeUrl.startsWith("https://")) {
-      safeUrl = "https://" + safeUrl;
-    }
+    if (!safeUrl.startsWith("http://") && !safeUrl.startsWith("https://")) safeUrl = "https://" + safeUrl;
     setWebViewUrl(safeUrl);
   };
 
@@ -186,11 +186,7 @@ export default function MenuScreen() {
                   <Text style={[styles.tdRecipe, { color: colors.text }]}>{item.recipe}</Text>
                 </View>
                 <View style={styles.tdNotesCol}>
-                  {item.notes ? (
-                    <Text style={[styles.tdNotes, { color: colors.textSecondary }]} numberOfLines={2}>{item.notes}</Text>
-                  ) : (
-                    <Text style={[styles.tdDash, { color: colors.placeholder }]}>—</Text>
-                  )}
+                  {item.notes ? <Text style={[styles.tdNotes, { color: colors.textSecondary }]} numberOfLines={2}>{item.notes}</Text> : <Text style={[styles.tdDash, { color: colors.placeholder }]}>—</Text>}
                 </View>
                 <View style={styles.tdLinkCol}>
                   {item.links && item.links.length > 0 ? (
@@ -198,9 +194,7 @@ export default function MenuScreen() {
                       <Feather name="link" size={12} color={colors.teal} />
                       <Text style={[styles.linkPillText, { color: colors.teal }]} numberOfLines={1}>{item.links[0].label || "Open"}</Text>
                     </TouchableOpacity>
-                  ) : (
-                    <Text style={[styles.tdDash, { color: colors.placeholder }]}>—</Text>
-                  )}
+                  ) : <Text style={[styles.tdDash, { color: colors.placeholder }]}>—</Text>}
                 </View>
                 <View style={styles.rowActions}>
                   <TouchableOpacity onPress={() => openEdit(item.id)} style={styles.rowAction}>
@@ -230,76 +224,39 @@ export default function MenuScreen() {
                   <Feather name="x" size={22} color={colors.text} />
                 </TouchableOpacity>
               </View>
-
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Day</Text>
-                <Text style={[styles.fieldValue, { color: colors.text }]}>{DAY_FULL[selectedDay]}</Text>
-
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Time (HH:MM)</Text>
-                <View style={[styles.inputRow, { backgroundColor: colors.inputBg }]}>
-                  <Feather name="clock" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={formTime}
-                    onChangeText={setFormTime}
-                    placeholder="08:00"
-                    placeholderTextColor={colors.placeholder}
-                    keyboardType="numbers-and-punctuation"
-                    maxLength={5}
-                  />
+                <View style={[styles.dayPicker, { borderColor: colors.border }]}> 
+                  {DAY_LABELS.map((d, idx) => (
+                    <TouchableOpacity key={d} onPress={() => setSelectedDay(idx)} style={[styles.dayPickBtn, selectedDay === idx && { backgroundColor: colors.teal }]}>
+                      <Text style={[styles.dayPickText, { color: selectedDay === idx ? "#fff" : colors.textSecondary }]}>{d}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Time (HH:MM)</Text>
+                <View style={[styles.compactTimeRow, { backgroundColor: colors.inputBg }]}>
+                  <Feather name="clock" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
+                  <TextInput style={[styles.compactTimeInput, { color: colors.text }]} value={formTime} onChangeText={setFormTime} placeholder="08:00" placeholderTextColor={colors.placeholder} keyboardType="numbers-and-punctuation" maxLength={5} />
+                </View>
                 <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Recipe / Meal Name *</Text>
                 <View style={[styles.inputRow, { backgroundColor: colors.inputBg }]}>
                   <Feather name="book-open" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={formRecipe}
-                    onChangeText={setFormRecipe}
-                    placeholder="e.g. Chicken salad, Oatmeal…"
-                    placeholderTextColor={colors.placeholder}
-                  />
+                  <TextInput style={[styles.input, { color: colors.text }]} value={formRecipe} onChangeText={setFormRecipe} placeholder="e.g. Chicken salad, Oatmeal…" placeholderTextColor={colors.placeholder} />
                 </View>
-
                 <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Notes</Text>
                 <View style={[styles.textareaRow, { backgroundColor: colors.inputBg }]}>
-                  <TextInput
-                    style={[styles.textarea, { color: colors.text }]}
-                    value={formNotes}
-                    onChangeText={setFormNotes}
-                    placeholder="Preparation tips, ingredients, quantities…"
-                    placeholderTextColor={colors.placeholder}
-                    multiline
-                    numberOfLines={3}
-                  />
+                  <TextInput style={[styles.textarea, { color: colors.text }]} value={formNotes} onChangeText={setFormNotes} placeholder="Preparation tips, ingredients, quantities…" placeholderTextColor={colors.placeholder} multiline numberOfLines={3} />
                 </View>
-
                 <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Link URL</Text>
                 <View style={[styles.inputRow, { backgroundColor: colors.inputBg }]}>
                   <Feather name="link" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={formLinkUrl}
-                    onChangeText={setFormLinkUrl}
-                    placeholder="https://..."
-                    placeholderTextColor={colors.placeholder}
-                    autoCapitalize="none"
-                    keyboardType="url"
-                  />
+                  <TextInput style={[styles.input, { color: colors.text }]} value={formLinkUrl} onChangeText={setFormLinkUrl} placeholder="https://..." placeholderTextColor={colors.placeholder} autoCapitalize="none" keyboardType="url" />
                 </View>
-
                 <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Link Label (optional)</Text>
                 <View style={[styles.inputRow, { backgroundColor: colors.inputBg }]}>
                   <Feather name="tag" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={formLinkLabel}
-                    onChangeText={setFormLinkLabel}
-                    placeholder="e.g. Recipe Video, Blog Post…"
-                    placeholderTextColor={colors.placeholder}
-                  />
+                  <TextInput style={[styles.input, { color: colors.text }]} value={formLinkLabel} onChangeText={setFormLinkLabel} placeholder="e.g. Recipe Video, Blog Post…" placeholderTextColor={colors.placeholder} />
                 </View>
-
                 <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSave}>
                   <Text style={styles.saveBtnText}>{editingId ? "Save Changes" : "Add to Menu"}</Text>
                 </TouchableOpacity>
@@ -328,14 +285,7 @@ export default function MenuScreen() {
               </TouchableOpacity>
             </View>
           </View>
-          {webViewUrl && (
-            <WebView
-              ref={webViewRef}
-              source={{ uri: webViewUrl }}
-              style={{ flex: 1 }}
-              onNavigationStateChange={(state) => { setWebCanGoBack(state.canGoBack); setWebCanGoFwd(state.canGoForward); }}
-            />
-          )}
+          {webViewUrl && <WebView ref={webViewRef} source={{ uri: webViewUrl }} style={{ flex: 1 }} onNavigationStateChange={(state) => { setWebCanGoBack(state.canGoBack); setWebCanGoFwd(state.canGoForward); }} />}
         </View>
       </Modal>
     </View>
@@ -383,6 +333,11 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: "700" as const },
   fieldLabel: { fontSize: 12, fontWeight: "600" as const, marginTop: 14, marginBottom: 4 },
   fieldValue: { fontSize: 15, fontWeight: "500" as const },
+  dayPicker: { flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 8, borderWidth: 1, borderRadius: 12 },
+  dayPickBtn: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.05)" },
+  dayPickText: { fontSize: 12, fontWeight: "600" as const },
+  compactTimeRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, height: 44 },
+  compactTimeInput: { flex: 1, paddingHorizontal: 12, fontSize: 18, fontWeight: "600" as const },
   inputRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, height: 44 },
   input: { flex: 1, paddingHorizontal: 12, fontSize: 15 },
   textareaRow: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
