@@ -139,7 +139,7 @@ export default function MenuScreen() {
         <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>{DAY_FULL[selectedDay]}</Text>
       </View>
 
-      <View style={[styles.weekNav, { backgroundColor: colors.cardBg, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+      <View style={[styles.weekNav, { backgroundColor: colors.card, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
         <TouchableOpacity onPress={() => setWeekOffset((p) => p - 1)} style={styles.weekNavArrow}>
           <Feather name="chevron-left" size={20} color={colors.tint} />
         </TouchableOpacity>
@@ -151,7 +151,7 @@ export default function MenuScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.dayTabs, { backgroundColor: colors.cardBg, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+      <View style={[styles.dayTabs, { backgroundColor: colors.card, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
         {DAY_LABELS.map((label, idx) => {
           const hasItems = weekItemsAll.some((m) => m.dayOfWeek === idx);
           return (
@@ -171,7 +171,7 @@ export default function MenuScreen() {
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Tap + to add a meal for {DAY_FULL[selectedDay]}</Text>
           </View>
         ) : (
-          <View style={[styles.table, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <View style={[styles.table, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.tableHead, { borderBottomColor: colors.border }]}>
               <Text style={[styles.thTime, { color: colors.textSecondary }]}>Time</Text>
               <Text style={[styles.thRecipe, { color: colors.textSecondary }]}>Recipe</Text>
@@ -217,7 +217,7 @@ export default function MenuScreen() {
       <Modal visible={showModal} animationType="slide" transparent presentationStyle="overFullScreen">
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
-            <View style={[styles.modalCard, { backgroundColor: colors.cardBg }]}>
+            <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>{editingId ? "Edit Entry" : "Add Meal"}</Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
@@ -267,7 +267,7 @@ export default function MenuScreen() {
       </Modal>
 
       <Modal visible={!!webViewUrl} animationType="slide" presentationStyle="overFullScreen">
-        <View style={[styles.webContainer, { paddingTop: insets.top, backgroundColor: colors.cardBg }]}>
+        <View style={[styles.webContainer, { paddingTop: insets.top, backgroundColor: colors.card }]}>
           <View style={[styles.webToolbar, { backgroundColor: colors.headerBg }]}>
             <TouchableOpacity onPress={() => { setWebViewUrl(null); setWebCanGoBack(false); setWebCanGoFwd(false); }} style={styles.webBtn}>
               <Feather name="x" size={20} color={colors.headerText} />
