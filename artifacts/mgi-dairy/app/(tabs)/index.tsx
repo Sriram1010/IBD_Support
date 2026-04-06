@@ -172,6 +172,7 @@ export default function DiaryScreen() {
   const [mealFiber, setMealFiber] = useState("");
 
   const [waterManual, setWaterManual] = useState("");
+  const [waterNotes, setWaterNotes] = useState("");
   const [editingWaterId, setEditingWaterId] = useState<string | null>(null);
   const [editWaterAmount, setEditWaterAmount] = useState("");
 
@@ -315,7 +316,23 @@ export default function DiaryScreen() {
     const ml = waterUnit === "gal" ? Math.round(amount * 3785.41) : Math.round(amount);
     await addWaterEntry({ date: today, amountMl: ml, time: formatTimeFromDate(new Date()) });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setWaterManual(""); setShowWaterModal(false);
+    setWaterManual("");
+  };
+
+  const handleSaveWater = async () => {
+    if (waterManual.trim()) {
+      const amount = parseFloat(waterManual);
+      if (!isNaN(amount) && amount > 0) {
+        const ml = waterUnit === "gal" ? Math.round(amount * 3785.41) : Math.round(amount);
+        await addWaterEntry({ date: today, amountMl: ml, time: formatTimeFromDate(new Date()), notes: waterNotes.trim() || undefined });
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setWaterManual("");
+    setWaterNotes("");
+    setEditingWaterId(null);
+    setShowWaterModal(false);
   };
 
   const handleSaveSleep = async () => {
@@ -771,7 +788,7 @@ export default function DiaryScreen() {
         </Modal>
 
         {/* WATER MODAL */}
-        <KbSheet visible={showWaterModal} onClose={() => { setShowWaterModal(false); setWaterManual(""); setEditingWaterId(null); }} title="Log Water" insets={insets}>
+        <KbSheet visible={showWaterModal} onClose={() => { setShowWaterModal(false); setWaterManual(""); setWaterNotes(""); setEditingWaterId(null); }} title="Log Water" insets={insets}>
           <View style={[styles.manualRow, { marginBottom: 0 }]}>
             <TextInput style={[styles.manualInput, { backgroundColor: colors.inputBg, color: colors.text }]} value={waterManual} onChangeText={setWaterManual} placeholder={`Amount in ${waterUnit}`} placeholderTextColor={colors.placeholder} keyboardType="decimal-pad" />
             <TouchableOpacity style={[styles.manualAddBtn, { backgroundColor: colors.teal }]} onPress={handleManualWater}>
@@ -806,9 +823,15 @@ export default function DiaryScreen() {
               ))}
             </View>
           )}
-          <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg, marginTop: 14 }]} onPress={() => { setShowWaterModal(false); setWaterManual(""); setEditingWaterId(null); }}>
-            <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-          </TouchableOpacity>
+          <TextInput style={[styles.sleepNotesInput, { backgroundColor: colors.inputBg, color: colors.text, marginTop: 14 }]} value={waterNotes} onChangeText={setWaterNotes} placeholder="Optional notes…" placeholderTextColor={colors.placeholder} multiline numberOfLines={2} />
+          <View style={styles.modalButtons}>
+            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => { setShowWaterModal(false); setWaterManual(""); setWaterNotes(""); setEditingWaterId(null); }}>
+              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.teal }]} onPress={handleSaveWater}>
+              <Text style={styles.saveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
         </KbSheet>
 
         {/* WATER GOAL MODAL */}
@@ -990,12 +1013,6 @@ export default function DiaryScreen() {
             ))}
           </View>
           <TextInput style={[styles.sleepNotesInput, { backgroundColor: colors.inputBg, color: colors.text }]} value={weightNotes} onChangeText={setWeightNotes} placeholder="Optional notes…" placeholderTextColor={colors.placeholder} multiline numberOfLines={2} />
-          {todayWeight && (
-            <TouchableOpacity style={[styles.deleteWeightBtn, { borderColor: "#EF4444" }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); Alert.alert("Delete entry?", undefined, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => { deleteWeightEntry(todayWeight.id); setShowWeightSheet(false); } }]); }}>
-              <Feather name="trash-2" size={14} color="#EF4444" /><Text style={styles.deleteWeightText}>Delete today's entry</Text>
-            </TouchableOpacity>
-          )}
           <View style={styles.modalButtons}>
             <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowWeightSheet(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSaveWeight}><Text style={styles.saveText}>Save</Text></TouchableOpacity>

@@ -20,6 +20,7 @@ export interface WaterEntry {
   date: string;
   amountMl: number;
   time?: string;
+  notes?: string;
 }
 
 export interface SleepLog {

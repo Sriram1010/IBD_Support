@@ -9,6 +9,25 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { useApp as useAppContext } from "@/context/AppContext";
 import Colors from "@/constants/colors";
+import { SimpleTimeInput } from "@/components/WheelPicker";
+
+function MenuSimple24hInput({ value, onChange, colors }: { value: string; onChange: (v: string) => void; colors: any }) {
+  const [text, setText] = React.useState(value || "08:00");
+  React.useEffect(() => { setText(value); }, [value]);
+  const tryEmit = (t: string) => {
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (m) {
+      const h = parseInt(m[1], 10); const mn = parseInt(m[2], 10);
+      if (h >= 0 && h <= 23 && mn >= 0 && mn <= 59)
+        onChange(`${String(h).padStart(2, "0")}:${String(mn).padStart(2, "0")}`);
+    }
+  };
+  return (
+    <TextInput value={text} onChangeText={(t) => { setText(t); tryEmit(t); }}
+      placeholder="08:00" keyboardType="numbers-and-punctuation" maxLength={5}
+      style={{ flex: 1, height: 36, borderRadius: 10, paddingHorizontal: 12, fontSize: 15, fontWeight: "600" as const, backgroundColor: colors.inputBg, color: colors.text }} />
+  );
+}
 
 function getMondayOfWeek(date: Date): Date {
   const d = new Date(date);
@@ -54,6 +73,7 @@ export default function MenuScreen() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formTime, setFormTime] = useState("08:00");
+  const [menuTimeFmt, setMenuTimeFmt] = useState<"12h" | "24h">("12h");
   const [formRecipe, setFormRecipe] = useState("");
   const [formNotes, setFormNotes] = useState("");
   const [formLinkUrl, setFormLinkUrl] = useState("");
@@ -233,11 +253,20 @@ export default function MenuScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Time (HH:MM)</Text>
-                <View style={[styles.compactTimeRow, { backgroundColor: colors.inputBg }]}>
-                  <Feather name="clock" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
-                  <TextInput style={[styles.compactTimeInput, { color: colors.text }]} value={formTime} onChangeText={setFormTime} placeholder="08:00" placeholderTextColor={colors.placeholder} keyboardType="numbers-and-punctuation" maxLength={5} />
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginBottom: 0 }]}>Time</Text>
+                  <View style={{ flexDirection: "row", borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
+                    <TouchableOpacity style={[{ paddingHorizontal: 12, paddingVertical: 5 }, menuTimeFmt === "12h" && { backgroundColor: colors.teal }]} onPress={() => setMenuTimeFmt("12h")}>
+                      <Text style={{ fontSize: 12, fontWeight: "600" as const, color: menuTimeFmt === "12h" ? "#fff" : colors.textSecondary }}>12 HR</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[{ paddingHorizontal: 12, paddingVertical: 5 }, menuTimeFmt === "24h" && { backgroundColor: colors.teal }]} onPress={() => setMenuTimeFmt("24h")}>
+                      <Text style={{ fontSize: 12, fontWeight: "600" as const, color: menuTimeFmt === "24h" ? "#fff" : colors.textSecondary }}>24 HR</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+                {menuTimeFmt === "12h"
+                  ? <SimpleTimeInput value={formTime} onChange={setFormTime} colors={colors} />
+                  : <MenuSimple24hInput value={formTime} onChange={setFormTime} colors={colors} />}
                 <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Recipe / Meal Name *</Text>
                 <View style={[styles.inputRow, { backgroundColor: colors.inputBg }]}>
                   <Feather name="book-open" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
