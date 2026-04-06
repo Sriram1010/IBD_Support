@@ -40,7 +40,7 @@ function KbSheet({ visible, onClose, title, children, insets, scrollable }: {
   insets: { bottom: number }; scrollable?: boolean;
 }) {
   const inner = (
-    <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+    <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16 }]}> 
       <View style={shStyles.handle} />
       <Text style={shStyles.title}>{title}</Text>
       {children}
@@ -218,3 +218,8 @@ export default function DiaryScreen() {
   const bottomPad = insets.bottom + tabBarHeight + 16;
   const sleepHoursToday = calcSleepHoursNum(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
   const sleepPct = Math.min((sleepHoursToday / sleepGoalHours) * 100, 100);
+
+  return (
+    <View />
+  );
+}
