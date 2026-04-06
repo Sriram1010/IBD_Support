@@ -1,0 +1,96 @@
+GLOBAL UPDATE (APPLIES EVERYWHERE)
+1.	Multiple Photo Upload Support:
+•	All “Add Photo” features must support MULTIPLE images (not just one).
+•	Allow:
+o	Select multiple from gallery
+o	Capture multiple via camera (sequential)
+•	UI Requirements:
+o	Show thumbnail previews (grid or horizontal scroll)
+o	Allow delete/remove individual images before saving
+•	Storage:
+o	Save as array of image URLs per entry (Firestore/Storage)
+
+DIARY TAB (TAB 1) – MAJOR ENHANCEMENTS
+1.	Food Log Entry Improvements:
+o	Each food entry must be: Editable, Deletable
+•	UX similar to existing “Water Log” edit/delete behavior
+2.	Food Log Table Update:
+•	Update columns to:
+o	Time | Food | Nutrition | Photos
+3.	Nutrition Column:
+•	Each entry should support:
+o	Calories
+o	Protein
+o	Carbs
+o	Fats
+o	Fiber
+4.	Add Food Modal / Form:
+•	Extend existing “Add Food” flow:
+o	Keep Food input (manual + voice)
+o	Add a new “Nutrition Details” section BELOW food input
+•	Fields:
+o	Calories (number)
+o	Protein (g)
+o	Carbs (g)
+o	Fats (g)
+o	Fiber (g)
+5.	Nutrition Data Behavior:
+•	Users can manually enter any/all nutrition values
+•	In the main Food Log:
+o	ONLY display nutrition values that were entered
+o	Hide empty values (do not show zero or null)
+6.	Nutrition Goals + Progress:
+•	Add daily goals for:
+o	Calories
+o	Protein
+o	Carbs
+o	Fats
+o	Fiber
+•	At the BOTTOM of the Food Log card:
+o	Show progress bars for each metric
+o	Style same as Water/Sleep/Exercise goals
+•	Progress Bar Behavior:
+o	Show: current total vs goal
+o	Color transition:
+	Red → Orange → Green based on % completion
+
+EXERCISE LOG UPDATE
+•	Add manual entry option for exercise
+•	User can input:
+o	Activity type (e.g., swimming, cycling, walking)
+o	Duration (minutes)
+•	Store and display as part of daily logs
+
+CALENDAR TAB – FIXES & IMPROVEMENTS
+1.	Rename Label:
+•	Rename “Photo” → “Stool Photos” (after images are added)
+2.	Date Highlight Consistency:
+•	Issue:
+o	Weekly and Yearly views do NOT highlight selected date properly
+•	Fix:
+o	Match Monthly view behavior exactly:
+	Selected date = clearly highlighted
+	Current date = lighter highlight
+3.	Wellness Trend Chart Fixes:
+A. Weekly Filter:
+•	X-axis must be:
+o	Monday → Sunday
+o	Labels in order:
+M, T, W, T, F, S, S
+B. Monthly Filter:
+•	X-axis should show ONLY current month days
+C. Water Filter:
+•	X-axis label must be:
+o	“ml” (NOT “x100ml”)
+•	Apply to:
+o	Weekly, Monthly, Yearly
+D. Remove BM Count:
+•	Remove “BM Count” from Wellness Trend filters entirely
+4.	Chart Data Accuracy:
+•	Fix incorrect X-axis mapping issues
+•	Ensure data aligns correctly with selected time range
+
+IMPORTANT NOTES
+•	Prioritize smooth mobile UX (Expo Go tested)
+•	Avoid UI clutter despite added features
+•	Ensure all updates are backward compatible with existing data

@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, TextInput, Modal, Alert, Platform, useColorScheme,
-  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
+  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, FlatList,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -10,13 +10,13 @@ import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, MealEntry, CustomActivity } from "@/context/AppContext";
 import {
   useDateString, formatTimeFromDate, formatDisplayDate,
-  mlToGallons, parseWaterInput, calcSleepHours, calcSleepHoursNum,
+  mlToGallons, calcSleepHours, calcSleepHoursNum,
   getProgressColor,
 } from "@/hooks/useDateString";
-import { SimpleTimeInput, parse24h, to24h } from "@/components/WheelPicker";
+import { SimpleTimeInput, parse24h } from "@/components/WheelPicker";
 
 const GAL_PRESETS = [
   { label: "0.5 gal", ml: 1893 },
@@ -28,24 +28,36 @@ const SLEEP_PRESETS = [6, 7, 8, 9];
 const EXERCISE_PRESETS = [20, 30, 45, 60];
 const WEIGHT_KG_PRESETS = [50, 60, 70, 80, 90, 100];
 
-function KbSheet({ visible, onClose, title, children, insets }: {
+function getMealImages(meal: MealEntry): string[] {
+  const imgs = meal.images ?? [];
+  if (imgs.length > 0) return imgs;
+  if (meal.imagePath) return [meal.imagePath];
+  return [];
+}
+
+function KbSheet({ visible, onClose, title, children, insets, scrollable }: {
   visible: boolean; onClose: () => void; title: string; children: React.ReactNode;
-  insets: { bottom: number };
+  insets: { bottom: number }; scrollable?: boolean;
 }) {
+  const inner = (
+    <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+      <View style={shStyles.handle} />
+      <Text style={shStyles.title}>{title}</Text>
+      {children}
+    </View>
+  );
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={shStyles.overlay}>
-          <TouchableWithoutFeedback onPress={onClose}>
-            <View style={StyleSheet.absoluteFill} />
-          </TouchableWithoutFeedback>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-              <View style={shStyles.handle} />
-              <Text style={shStyles.title}>{title}</Text>
-              {children}
-            </View>
-          </TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={onClose}><View style={StyleSheet.absoluteFill} /></TouchableWithoutFeedback>
+          {scrollable ? (
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 0 }}>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>{inner}</TouchableWithoutFeedback>
+            </ScrollView>
+          ) : (
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>{inner}</TouchableWithoutFeedback>
+          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -54,7 +66,7 @@ function KbSheet({ visible, onClose, title, children, insets }: {
 
 const shStyles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "92%" },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E0D8F0", alignSelf: "center", marginBottom: 16 },
   title: { fontSize: 20, fontWeight: "700" as const, marginBottom: 16, color: "#1A1A2E" },
 });
@@ -65,26 +77,32 @@ function Simple24hInput({ value, onChange, colors }: { value: string; onChange: 
   const tryEmit = (t: string) => {
     const m = t.match(/^(\d{1,2}):(\d{2})$/);
     if (m) {
-      const h = parseInt(m[1], 10);
-      const mn = parseInt(m[2], 10);
-      if (h >= 0 && h <= 23 && mn >= 0 && mn <= 59) {
+      const h = parseInt(m[1], 10); const mn = parseInt(m[2], 10);
+      if (h >= 0 && h <= 23 && mn >= 0 && mn <= 59)
         onChange(`${String(h).padStart(2, "0")}:${String(mn).padStart(2, "0")}`);
-      }
     }
   };
   return (
-    <TextInput
-      value={text}
-      onChangeText={(t) => { setText(t); tryEmit(t); }}
-      placeholder="22:00"
-      keyboardType="numbers-and-punctuation"
-      maxLength={5}
-      style={{
-        flex: 1, height: 52, borderRadius: 10, paddingHorizontal: 16,
-        fontSize: 24, fontWeight: "600" as const,
-        backgroundColor: colors.inputBg, color: colors.text,
-      }}
-    />
+    <TextInput value={text} onChangeText={(t) => { setText(t); tryEmit(t); }}
+      placeholder="22:00" keyboardType="numbers-and-punctuation" maxLength={5}
+      style={{ flex: 1, height: 52, borderRadius: 10, paddingHorizontal: 16, fontSize: 24, fontWeight: "600" as const, backgroundColor: colors.inputBg, color: colors.text }} />
+  );
+}
+
+function GoalProgressBar({ pct }: { pct: number }) {
+  const color = getProgressColor(pct);
+  return (
+    <View style={[styles.progressTrack, { backgroundColor: "rgba(0,0,0,0.08)" }]}>
+      <View style={[styles.progressFill, { width: `${Math.min(pct, 100)}%` as any, backgroundColor: color }]} />
+    </View>
+  );
+}
+
+function NutritionBadge({ label, value, unit, color }: { label: string; value: number; unit: string; color: string }) {
+  return (
+    <View style={[styles.nutBadge, { backgroundColor: color + "18", borderColor: color + "40", borderWidth: 1 }]}>
+      <Text style={[styles.nutBadgeText, { color }]}>{value}{unit} {label}</Text>
+    </View>
   );
 }
 
@@ -96,22 +114,37 @@ export default function DiaryScreen() {
 
   const {
     meals, waterEntries, sleepLogs, weightLogs,
-    addMeal, deleteMeal, addWaterEntry, deleteWaterEntry, updateWaterEntry, addSleepLog, updateSleepLog,
+    addMeal, updateMeal, deleteMeal,
+    addWaterEntry, deleteWaterEntry, updateWaterEntry,
+    addSleepLog, updateSleepLog,
     saveExerciseLog, getTodayExercise,
     saveWeightEntry, deleteWeightEntry, getWeightEntry,
     waterGoalMl, setWaterGoalMl,
     sleepGoalHours, setSleepGoalHours,
     exerciseGoalMinutes, setExerciseGoalMinutes,
     weightGoalKg, setWeightGoalKg,
+    calorieGoal, proteinGoal, carbsGoal, fatsGoal, fiberGoal,
+    setCalorieGoal, setProteinGoal, setCarbsGoal, setFatsGoal, setFiberGoal,
   } = useApp();
 
-  const todayMeals = meals.filter((m) => m.date === today).sort((a, b) => a.time.localeCompare(b.time));
-  const todayWaterTotal = waterEntries.filter((w) => w.date === today).reduce((sum, w) => sum + w.amountMl, 0);
-  const todaySleep = sleepLogs.find((s) => s.date === today);
-  const todayExercise = getTodayExercise(today);
-  const todayWeight = getWeightEntry(today);
+  const todayMeals = useMemo(() => meals.filter((m) => m.date === today).sort((a, b) => a.time.localeCompare(b.time)), [meals, today]);
+  const todayWaterTotal = useMemo(() => waterEntries.filter((w) => w.date === today).reduce((sum, w) => sum + w.amountMl, 0), [waterEntries, today]);
+  const todaySleep = useMemo(() => sleepLogs.find((s) => s.date === today), [sleepLogs, today]);
+  const todayExercise = useMemo(() => getTodayExercise(today), [getTodayExercise, today]);
+  const todayWeight = useMemo(() => getWeightEntry(today), [getWeightEntry, today]);
+
+  const todayNutrition = useMemo(() => {
+    return todayMeals.reduce((acc, m) => ({
+      calories: acc.calories + (m.calories ?? 0),
+      protein: acc.protein + (m.protein ?? 0),
+      carbs: acc.carbs + (m.carbs ?? 0),
+      fats: acc.fats + (m.fats ?? 0),
+      fiber: acc.fiber + (m.fiber ?? 0),
+    }), { calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0 });
+  }, [todayMeals]);
 
   const [showMealModal, setShowMealModal] = useState(false);
+  const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [showWaterModal, setShowWaterModal] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showSleepSheet, setShowSleepSheet] = useState(false);
@@ -120,28 +153,38 @@ export default function DiaryScreen() {
   const [showExerciseGoalModal, setShowExerciseGoalModal] = useState(false);
   const [showWeightSheet, setShowWeightSheet] = useState(false);
   const [showWeightGoalModal, setShowWeightGoalModal] = useState(false);
+  const [showNutritionGoalModal, setShowNutritionGoalModal] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState<string | null>(null);
+  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [viewerIndex, setViewerIndex] = useState(0);
   const [waterUnit, setWaterUnit] = useState<"ml" | "gal">("ml");
   const [sleepTimeFormat, setSleepTimeFormat] = useState<"12h" | "24h">("12h");
   const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg");
 
   const [mealTime, setMealTime] = useState(formatTimeFromDate(new Date()));
   const [mealFood, setMealFood] = useState("");
-  const [mealImage, setMealImage] = useState<string | undefined>(undefined);
+  const [mealImages, setMealImages] = useState<string[]>([]);
+  const [mealCalories, setMealCalories] = useState("");
+  const [mealProtein, setMealProtein] = useState("");
+  const [mealCarbs, setMealCarbs] = useState("");
+  const [mealFats, setMealFats] = useState("");
+  const [mealFiber, setMealFiber] = useState("");
 
   const [waterManual, setWaterManual] = useState("");
-  const [waterText, setWaterText] = useState("");
   const [editingWaterId, setEditingWaterId] = useState<string | null>(null);
   const [editWaterAmount, setEditWaterAmount] = useState("");
 
-  const [bedtime, setBedtime] = useState(todaySleep?.bedtime ?? "22:00");
-  const [wakeTime, setWakeTime] = useState(todaySleep?.wakeTime ?? "07:00");
-  const [sleepNotes, setSleepNotes] = useState(todaySleep?.notes ?? "");
+  const [bedtime, setBedtime] = useState("22:00");
+  const [wakeTime, setWakeTime] = useState("07:00");
+  const [sleepNotes, setSleepNotes] = useState("");
 
   const [exRunning, setExRunning] = useState("0");
   const [exWalking, setExWalking] = useState("0");
   const [exStrength, setExStrength] = useState("0");
   const [exCardio, setExCardio] = useState("0");
+  const [customActivities, setCustomActivities] = useState<CustomActivity[]>([]);
+  const [newActivityName, setNewActivityName] = useState("");
+  const [newActivityMins, setNewActivityMins] = useState("");
 
   const [weightInput, setWeightInput] = useState("");
   const [weightNotes, setWeightNotes] = useState("");
@@ -153,55 +196,107 @@ export default function DiaryScreen() {
   const [weightGoalInput, setWeightGoalInput] = useState(String(weightGoalKg));
   const [weightGoalUnit, setWeightGoalUnit] = useState<"kg" | "lbs">("kg");
 
+  const [nutCalGoal, setNutCalGoal] = useState(String(calorieGoal));
+  const [nutProGoal, setNutProGoal] = useState(String(proteinGoal));
+  const [nutCarbGoal, setNutCarbGoal] = useState(String(carbsGoal));
+  const [nutFatGoal, setNutFatGoal] = useState(String(fatsGoal));
+  const [nutFibGoal, setNutFibGoal] = useState(String(fiberGoal));
+
   const waterPct = Math.min((todayWaterTotal / waterGoalMl) * 100, 100);
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
   const tabBarHeight = Platform.OS === "web" ? 60 : 50;
   const bottomPad = insets.bottom + tabBarHeight + 16;
-
   const sleepHoursToday = calcSleepHoursNum(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
   const sleepPct = Math.min((sleepHoursToday / sleepGoalHours) * 100, 100);
-
-  const exMinRunning = parseInt(exRunning || "0", 10);
-  const exMinWalking = parseInt(exWalking || "0", 10);
-  const exMinStrength = parseInt(exStrength || "0", 10);
-  const exMinCardio = parseInt(exCardio || "0", 10);
-  const exTotalSheet = exMinRunning + exMinWalking + exMinStrength + exMinCardio;
-
   const totalExerciseMin = (todayExercise?.running ?? 0) + (todayExercise?.walking ?? 0) +
-    (todayExercise?.strengthTraining ?? 0) + (todayExercise?.cardio ?? 0);
+    (todayExercise?.strengthTraining ?? 0) + (todayExercise?.cardio ?? 0) +
+    (todayExercise?.customActivities ?? []).reduce((s, a) => s + a.minutes, 0);
   const exercisePct = Math.min((totalExerciseMin / exerciseGoalMinutes) * 100, 100);
-
-  const goalDisplayStr = waterUnit === "gal" ? `${mlToGallons(waterGoalMl)} gal` : `${waterGoalMl} ml`;
-  const waterAmountDisplay = waterUnit === "ml" ? `${todayWaterTotal} ml` : `${mlToGallons(todayWaterTotal)} gal`;
+  const exTotalSheet = parseInt(exRunning || "0", 10) + parseInt(exWalking || "0", 10) +
+    parseInt(exStrength || "0", 10) + parseInt(exCardio || "0", 10) +
+    customActivities.reduce((s, a) => s + a.minutes, 0);
 
   const kgToLbs = (kg: number) => (kg * 2.20462).toFixed(1);
   const lbsToKg = (lbs: number) => lbs / 2.20462;
   const weightDisplayStr = todayWeight
-    ? (weightUnit === "kg" ? `${todayWeight.weightKg.toFixed(1)} kg` : `${kgToLbs(todayWeight.weightKg)} lbs`)
-    : "—";
+    ? (weightUnit === "kg" ? `${todayWeight.weightKg.toFixed(1)} kg` : `${kgToLbs(todayWeight.weightKg)} lbs`) : "—";
   const weightGoalDisplay = weightUnit === "kg" ? `${weightGoalKg.toFixed(1)} kg` : `${kgToLbs(weightGoalKg)} lbs`;
+  const waterAmountDisplay = waterUnit === "ml" ? `${todayWaterTotal} ml` : `${mlToGallons(todayWaterTotal)} gal`;
+  const goalDisplayStr = waterUnit === "gal" ? `${mlToGallons(waterGoalMl)} gal` : `${waterGoalMl} ml`;
+  const totalHoursStr = calcSleepHours(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
 
-  const handlePickImage = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (perm.status !== "granted") {
-      const gp = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (gp.status !== "granted") { Alert.alert("Permission needed", "Camera or photo library access required."); return; }
-      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
-      if (!r.canceled && r.assets[0]) setMealImage(r.assets[0].uri);
-      return;
-    }
-    Alert.alert("Add Photo", "Choose source", [
-      { text: "Camera", onPress: async () => { const r = await ImagePicker.launchCameraAsync({ quality: 0.8 }); if (!r.canceled && r.assets[0]) setMealImage(r.assets[0].uri); } },
-      { text: "Photo Library", onPress: async () => { const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 }); if (!r.canceled && r.assets[0]) setMealImage(r.assets[0].uri); } },
+  const pickImages = async () => {
+    Alert.alert("Add Photos", "Choose source", [
+      {
+        text: "Camera", onPress: async () => {
+          const cp = await ImagePicker.requestCameraPermissionsAsync();
+          if (cp.status !== "granted") { Alert.alert("Permission needed", "Camera access required."); return; }
+          const r = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+          if (!r.canceled && r.assets[0]) setMealImages((prev) => [...prev, r.assets[0].uri]);
+        },
+      },
+      {
+        text: "Photo Library", onPress: async () => {
+          const gp = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (gp.status !== "granted") { Alert.alert("Permission needed", "Library access required."); return; }
+          const r = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.8,
+            allowsMultipleSelection: true,
+          });
+          if (!r.canceled) setMealImages((prev) => [...prev, ...r.assets.map((a) => a.uri)]);
+        },
+      },
       { text: "Cancel", style: "cancel" },
     ]);
   };
 
+  const openAddMeal = () => {
+    setEditingMealId(null);
+    setMealTime(formatTimeFromDate(new Date()));
+    setMealFood(""); setMealImages([]);
+    setMealCalories(""); setMealProtein(""); setMealCarbs(""); setMealFats(""); setMealFiber("");
+    setShowMealModal(true);
+  };
+
+  const openEditMeal = (meal: MealEntry) => {
+    setEditingMealId(meal.id);
+    setMealTime(meal.time);
+    setMealFood(meal.foodDetails);
+    setMealImages(getMealImages(meal));
+    setMealCalories(meal.calories ? String(meal.calories) : "");
+    setMealProtein(meal.protein ? String(meal.protein) : "");
+    setMealCarbs(meal.carbs ? String(meal.carbs) : "");
+    setMealFats(meal.fats ? String(meal.fats) : "");
+    setMealFiber(meal.fiber ? String(meal.fiber) : "");
+    setShowMealModal(true);
+  };
+
   const handleSaveMeal = async () => {
     if (!mealFood.trim()) { Alert.alert("Required", "Please enter food details."); return; }
-    await addMeal({ date: today, time: mealTime, foodDetails: mealFood.trim(), imagePath: mealImage });
+    const payload: Partial<MealEntry> = {
+      time: mealTime, foodDetails: mealFood.trim(), images: mealImages,
+      calories: mealCalories ? parseInt(mealCalories, 10) : undefined,
+      protein: mealProtein ? parseFloat(mealProtein) : undefined,
+      carbs: mealCarbs ? parseFloat(mealCarbs) : undefined,
+      fats: mealFats ? parseFloat(mealFats) : undefined,
+      fiber: mealFiber ? parseFloat(mealFiber) : undefined,
+    };
+    if (editingMealId) {
+      await updateMeal(editingMealId, payload);
+    } else {
+      await addMeal({ date: today, ...payload } as Omit<MealEntry, "id">);
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowMealModal(false); setMealFood(""); setMealImage(undefined);
+    setShowMealModal(false);
+  };
+
+  const handleDeleteMeal = (meal: MealEntry) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert("Delete meal?", meal.foodDetails, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => deleteMeal(meal.id) },
+    ]);
   };
 
   const handleManualWater = async () => {
@@ -220,13 +315,22 @@ export default function DiaryScreen() {
     setShowSleepSheet(false);
   };
 
+  const handleAddCustomActivity = () => {
+    if (!newActivityName.trim()) return;
+    const mins = parseInt(newActivityMins, 10);
+    if (isNaN(mins) || mins <= 0) return;
+    setCustomActivities((prev) => [...prev, { name: newActivityName.trim(), minutes: mins }]);
+    setNewActivityName(""); setNewActivityMins("");
+  };
+
   const handleSaveExercise = async () => {
     await saveExerciseLog({
       date: today,
-      running: exMinRunning,
-      walking: exMinWalking,
-      strengthTraining: exMinStrength,
-      cardio: exMinCardio,
+      running: parseInt(exRunning || "0", 10),
+      walking: parseInt(exWalking || "0", 10),
+      strengthTraining: parseInt(exStrength || "0", 10),
+      cardio: parseInt(exCardio || "0", 10),
+      customActivities,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowExerciseSheet(false);
@@ -249,17 +353,17 @@ export default function DiaryScreen() {
     setShowSleepGoalModal(false);
   };
 
-  const handleSaveExerciseGoal = async () => {
-    const val = parseInt(exerciseGoalInput, 10);
-    if (isNaN(val) || val <= 0) { Alert.alert("Invalid", "Enter a valid exercise goal."); return; }
-    await setExerciseGoalMinutes(val);
+  const handleQuickExerciseGoal = async (minutes: number) => {
+    await setExerciseGoalMinutes(minutes);
+    setExerciseGoalInput(String(minutes));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowExerciseGoalModal(false);
   };
 
-  const handleQuickExerciseGoal = async (minutes: number) => {
-    await setExerciseGoalMinutes(minutes);
-    setExerciseGoalInput(String(minutes));
+  const handleSaveExerciseGoal = async () => {
+    const val = parseInt(exerciseGoalInput, 10);
+    if (isNaN(val) || val <= 0) { Alert.alert("Invalid", "Enter a valid exercise goal."); return; }
+    await setExerciseGoalMinutes(val);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowExerciseGoalModal(false);
   };
@@ -282,11 +386,27 @@ export default function DiaryScreen() {
     setShowWeightGoalModal(false);
   };
 
+  const handleSaveNutritionGoals = async () => {
+    const cal = parseInt(nutCalGoal, 10);
+    const pro = parseInt(nutProGoal, 10);
+    const carb = parseInt(nutCarbGoal, 10);
+    const fat = parseInt(nutFatGoal, 10);
+    const fib = parseInt(nutFibGoal, 10);
+    if ([cal, pro, carb, fat, fib].some((v) => isNaN(v) || v <= 0)) {
+      Alert.alert("Invalid", "Enter valid positive numbers for all goals."); return;
+    }
+    await Promise.all([setCalorieGoal(cal), setProteinGoal(pro), setCarbsGoal(carb), setFatsGoal(fat), setFiberGoal(fib)]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowNutritionGoalModal(false);
+  };
+
   const openExercise = () => {
     setExRunning(String(todayExercise?.running ?? 0));
     setExWalking(String(todayExercise?.walking ?? 0));
     setExStrength(String(todayExercise?.strengthTraining ?? 0));
     setExCardio(String(todayExercise?.cardio ?? 0));
+    setCustomActivities(todayExercise?.customActivities ?? []);
+    setNewActivityName(""); setNewActivityMins("");
     setShowExerciseSheet(true);
   };
 
@@ -299,17 +419,17 @@ export default function DiaryScreen() {
 
   const openWeight = () => {
     if (todayWeight) {
-      const display = weightUnit === "kg" ? todayWeight.weightKg.toFixed(1) : kgToLbs(todayWeight.weightKg);
-      setWeightInput(display);
+      setWeightInput(weightUnit === "kg" ? todayWeight.weightKg.toFixed(1) : kgToLbs(todayWeight.weightKg));
       setWeightNotes(todayWeight.notes ?? "");
-    } else {
-      setWeightInput("");
-      setWeightNotes("");
-    }
+    } else { setWeightInput(""); setWeightNotes(""); }
     setShowWeightSheet(true);
   };
 
-  const totalHoursStr = calcSleepHours(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
+  const openPhotoViewer = (photos: string[], startIdx: number) => {
+    setViewerImages(photos); setViewerIndex(startIdx); setShowImageViewer(photos[startIdx]);
+  };
+
+  const hasAnyNutrition = todayNutrition.calories > 0 || todayNutrition.protein > 0 || todayNutrition.carbs > 0 || todayNutrition.fats > 0 || todayNutrition.fiber > 0;
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -319,40 +439,110 @@ export default function DiaryScreen() {
           <Text style={[styles.headerDate, { color: colors.headerTextSecondary }]}>{formatDisplayDate(today)}</Text>
         </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
           {/* FOOD LOG */}
-          <SectionCard title="Food Log" colors={colors} onAdd={() => { setShowMealModal(true); setMealTime(formatTimeFromDate(new Date())); }}>
-            {todayMeals.length === 0 ? <EmptyState icon="coffee" text="No food logged today" colors={colors} /> : (
+          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+            <View style={styles.cardHeader}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Food Log</Text>
+              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openAddMeal}>
+                <Feather name="plus" size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {todayMeals.length === 0 ? (
+              <View style={styles.emptyState}><Feather name="coffee" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>No food logged today</Text></View>
+            ) : (
               <View>
                 <View style={[styles.tableHeader, { borderBottomColor: colors.border }]}>
                   <Text style={[styles.thTime, { color: colors.textSecondary }]}>Time</Text>
                   <Text style={[styles.thFood, { color: colors.textSecondary }]}>Food</Text>
-                  <Text style={[styles.thPhoto, { color: colors.textSecondary }]}>Photo</Text>
+                  <Text style={[styles.thNut, { color: colors.textSecondary }]}>Nutrition</Text>
+                  <Text style={[styles.thPhoto, { color: colors.textSecondary }]}>Photos</Text>
                 </View>
-                {todayMeals.map((meal) => (
-                  <TouchableOpacity key={meal.id} style={[styles.tableRow, { borderBottomColor: colors.borderLight }]}
-                    onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); Alert.alert("Delete?", meal.foodDetails, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deleteMeal(meal.id) }]); }}>
-                    <Text style={[styles.tdTime, { color: colors.text }]}>{meal.time}</Text>
-                    <Text style={[styles.tdFood, { color: colors.text }]} numberOfLines={2}>{meal.foodDetails}</Text>
-                    <View style={styles.tdPhoto}>
-                      {meal.imagePath ? (
-                        <TouchableOpacity onPress={() => setShowImageViewer(meal.imagePath!)}>
-                          <Image source={{ uri: meal.imagePath }} style={styles.thumbnail} />
+                {todayMeals.map((meal) => {
+                  const imgs = getMealImages(meal);
+                  const hasNut = (meal.calories ?? 0) > 0 || (meal.protein ?? 0) > 0 || (meal.carbs ?? 0) > 0 || (meal.fats ?? 0) > 0 || (meal.fiber ?? 0) > 0;
+                  return (
+                    <View key={meal.id} style={[styles.mealRow, { borderTopColor: colors.borderLight }]}>
+                      <Text style={[styles.tdTime, { color: colors.text }]}>{meal.time}</Text>
+                      <View style={styles.tdFoodCol}>
+                        <Text style={[styles.foodName, { color: colors.text }]} numberOfLines={2}>{meal.foodDetails}</Text>
+                        {hasNut && (
+                          <View style={styles.nutTagRow}>
+                            {(meal.calories ?? 0) > 0 && <NutritionBadge label="cal" value={meal.calories!} unit="" color="#EF4444" />}
+                            {(meal.protein ?? 0) > 0 && <NutritionBadge label="P" value={meal.protein!} unit="g" color="#10B981" />}
+                            {(meal.carbs ?? 0) > 0 && <NutritionBadge label="C" value={meal.carbs!} unit="g" color="#3B82F6" />}
+                            {(meal.fats ?? 0) > 0 && <NutritionBadge label="F" value={meal.fats!} unit="g" color="#F97316" />}
+                            {(meal.fiber ?? 0) > 0 && <NutritionBadge label="Fb" value={meal.fiber!} unit="g" color="#8B5CF6" />}
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.tdNutCol}>
+                        {!hasNut && <Text style={[styles.nutEmpty, { color: colors.placeholder }]}>—</Text>}
+                      </View>
+                      <View style={styles.tdPhotoCol}>
+                        {imgs.length > 0 ? (
+                          <TouchableOpacity onPress={() => openPhotoViewer(imgs, 0)}>
+                            <Image source={{ uri: imgs[0] }} style={styles.thumbnail} />
+                            {imgs.length > 1 && (
+                              <View style={[styles.photoCountBadge, { backgroundColor: colors.purple }]}>
+                                <Text style={styles.photoCountText}>+{imgs.length - 1}</Text>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        ) : (
+                          <View style={[styles.noPhoto, { backgroundColor: colors.borderLight }]}><Feather name="image" size={14} color={colors.placeholder} /></View>
+                        )}
+                      </View>
+                      <View style={styles.mealActions}>
+                        <TouchableOpacity style={[styles.mealActionBtn, { backgroundColor: colors.sectionBg }]} onPress={() => openEditMeal(meal)}>
+                          <Feather name="edit-2" size={12} color={colors.tint} />
                         </TouchableOpacity>
-                      ) : (
-                        <View style={[styles.noPhoto, { backgroundColor: colors.borderLight }]}><Feather name="image" size={14} color={colors.placeholder} /></View>
-                      )}
+                        <TouchableOpacity style={[styles.mealActionBtn, { backgroundColor: "#FEE2E2" }]} onPress={() => handleDeleteMeal(meal)}>
+                          <Feather name="trash-2" size={12} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </TouchableOpacity>
-                ))}
+                  );
+                })}
               </View>
             )}
-          </SectionCard>
+
+            {/* Nutrition progress bars */}
+            {hasAnyNutrition && (
+              <View style={[styles.nutProgressSection, { borderTopColor: colors.border }]}>
+                <View style={styles.nutProgressHeader}>
+                  <Text style={[styles.nutProgressTitle, { color: colors.textSecondary }]}>Daily Nutrition</Text>
+                  <TouchableOpacity onPress={() => { setNutCalGoal(String(calorieGoal)); setNutProGoal(String(proteinGoal)); setNutCarbGoal(String(carbsGoal)); setNutFatGoal(String(fatsGoal)); setNutFibGoal(String(fiberGoal)); setShowNutritionGoalModal(true); }}>
+                    <Text style={[styles.nutGoalBtn, { color: colors.tint }]}>Edit Goals</Text>
+                  </TouchableOpacity>
+                </View>
+                {calorieGoal > 0 && todayNutrition.calories > 0 && (
+                  <NutProgressRow label="Calories" current={todayNutrition.calories} goal={calorieGoal} unit="cal" color="#EF4444" colors={colors} />
+                )}
+                {proteinGoal > 0 && todayNutrition.protein > 0 && (
+                  <NutProgressRow label="Protein" current={todayNutrition.protein} goal={proteinGoal} unit="g" color="#10B981" colors={colors} />
+                )}
+                {carbsGoal > 0 && todayNutrition.carbs > 0 && (
+                  <NutProgressRow label="Carbs" current={todayNutrition.carbs} goal={carbsGoal} unit="g" color="#3B82F6" colors={colors} />
+                )}
+                {fatsGoal > 0 && todayNutrition.fats > 0 && (
+                  <NutProgressRow label="Fats" current={todayNutrition.fats} goal={fatsGoal} unit="g" color="#F97316" colors={colors} />
+                )}
+                {fiberGoal > 0 && todayNutrition.fiber > 0 && (
+                  <NutProgressRow label="Fiber" current={todayNutrition.fiber} goal={fiberGoal} unit="g" color="#8B5CF6" colors={colors} />
+                )}
+              </View>
+            )}
+            {!hasAnyNutrition && todayMeals.length > 0 && (
+              <TouchableOpacity style={[styles.nutGoalHint, { borderTopColor: colors.border }]}
+                onPress={() => { setNutCalGoal(String(calorieGoal)); setNutProGoal(String(proteinGoal)); setNutCarbGoal(String(carbsGoal)); setNutFatGoal(String(fatsGoal)); setNutFibGoal(String(fiberGoal)); setShowNutritionGoalModal(true); }}>
+                <Feather name="bar-chart-2" size={13} color={colors.placeholder} />
+                <Text style={[styles.nutGoalHintText, { color: colors.placeholder }]}>Add nutrition info to meals to track daily goals</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* WATER */}
           <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
@@ -375,7 +565,7 @@ export default function DiaryScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            <View style={[styles.amountCard, { backgroundColor: colors.tealLight }]}>
+            <View style={[styles.amountCard, { backgroundColor: colors.tealLight, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
               <Text style={[styles.amountBig, { color: colors.teal }]}>{waterAmountDisplay}</Text>
               <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
                 onPress={() => { setGoalInput(mlToGallons(waterGoalMl)); setGoalUnit("gal"); setShowGoalModal(true); }}>
@@ -388,7 +578,13 @@ export default function DiaryScreen() {
           </View>
 
           {/* SLEEP */}
-          <SectionCard title="Sleep" colors={colors} onAdd={openSleep}>
+          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+            <View style={styles.cardHeader}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Sleep</Text>
+              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openSleep}>
+                <Feather name="plus" size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
             {todaySleep ? (
               <TouchableOpacity onPress={openSleep}>
                 <View style={styles.sleepRow}>
@@ -409,15 +605,10 @@ export default function DiaryScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={openSleep}>
-                <EmptyState icon="moon" text="Tap to log your sleep" colors={colors} />
-                <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1, alignSelf: "flex-end", marginTop: 8 }]}
-                  onPress={() => { setSleepGoalInput(String(sleepGoalHours)); setShowSleepGoalModal(true); }}>
-                  <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {sleepGoalHours}h</Text>
-                  <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
-                </TouchableOpacity>
+                <View style={styles.emptyState}><Feather name="moon" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>Tap to log your sleep</Text></View>
               </TouchableOpacity>
             )}
-          </SectionCard>
+          </View>
 
           {/* WEIGHT */}
           <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
@@ -454,25 +645,29 @@ export default function DiaryScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={openWeight}>
-                <EmptyState icon="trending-up" text="Tap to log your weight" colors={colors} />
-                <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1, alignSelf: "flex-end", marginTop: 8 }]}
-                  onPress={() => { setWeightGoalInput(weightUnit === "kg" ? String(weightGoalKg) : kgToLbs(weightGoalKg)); setWeightGoalUnit(weightUnit); setShowWeightGoalModal(true); }}>
-                  <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {weightGoalDisplay}</Text>
-                  <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
-                </TouchableOpacity>
+                <View style={styles.emptyState}><Feather name="trending-up" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>Tap to log your weight</Text></View>
               </TouchableOpacity>
             )}
           </View>
 
           {/* EXERCISE */}
-          <SectionCard title="Exercise" colors={colors} onAdd={openExercise}>
+          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+            <View style={styles.cardHeader}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Exercise</Text>
+              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openExercise}>
+                <Feather name="plus" size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
             {todayExercise && totalExerciseMin > 0 ? (
               <TouchableOpacity onPress={openExercise}>
                 <View style={styles.exerciseGrid}>
-                  <ExerciseTile icon="activity" label="Running" value={todayExercise.running} colors={colors} />
-                  <ExerciseTile icon="navigation" label="Walking" value={todayExercise.walking} colors={colors} />
-                  <ExerciseTile icon="zap" label="Strength Training" value={todayExercise.strengthTraining} colors={colors} />
-                  <ExerciseTile icon="heart" label="Cardio" value={todayExercise.cardio} colors={colors} />
+                  {(todayExercise.running ?? 0) > 0 && <ExerciseTile icon="activity" label="Running" value={todayExercise.running} colors={colors} />}
+                  {(todayExercise.walking ?? 0) > 0 && <ExerciseTile icon="navigation" label="Walking" value={todayExercise.walking} colors={colors} />}
+                  {(todayExercise.strengthTraining ?? 0) > 0 && <ExerciseTile icon="zap" label="Strength" value={todayExercise.strengthTraining} colors={colors} />}
+                  {(todayExercise.cardio ?? 0) > 0 && <ExerciseTile icon="heart" label="Cardio" value={todayExercise.cardio} colors={colors} />}
+                  {(todayExercise.customActivities ?? []).map((a, i) => (
+                    <ExerciseTile key={i} icon="plus-circle" label={a.name} value={a.minutes} colors={colors} />
+                  ))}
                 </View>
                 <View style={[styles.amountCard, { backgroundColor: colors.sectionBg, marginTop: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
                   <Text style={[styles.amountBig, { color: colors.gold, fontSize: 24 }]}>{totalExerciseMin} min</Text>
@@ -487,62 +682,86 @@ export default function DiaryScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={openExercise}>
-                <EmptyState icon="trending-up" text="Tap to log exercise" colors={colors} />
-                <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1, alignSelf: "flex-end", marginTop: 8 }]}
-                  onPress={() => { setExerciseGoalInput(String(exerciseGoalMinutes)); setShowExerciseGoalModal(true); }}>
-                  <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {exerciseGoalMinutes}min</Text>
-                  <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
-                </TouchableOpacity>
+                <View style={styles.emptyState}><Feather name="trending-up" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>Tap to log exercise</Text></View>
               </TouchableOpacity>
             )}
-          </SectionCard>
+          </View>
         </ScrollView>
 
-        {/* MEAL MODAL */}
-        <KbSheet visible={showMealModal} onClose={() => { setShowMealModal(false); setMealFood(""); setMealImage(undefined); }} title="Add Food" insets={insets}>
-          <View style={[styles.timeRow, { backgroundColor: colors.inputBg, borderRadius: 10 }]}>
-            <Feather name="clock" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
-            <TextInput style={[styles.timeInput, { color: colors.text }]} value={mealTime} onChangeText={setMealTime} placeholder="HH:MM" placeholderTextColor={colors.placeholder} />
-          </View>
-          <View style={[styles.foodInputRow, { backgroundColor: colors.inputBg, borderRadius: 10, marginTop: 10 }]}>
-            <TextInput style={[styles.foodInput, { color: colors.text }]} value={mealFood} onChangeText={setMealFood} placeholder="Food details…" placeholderTextColor={colors.placeholder} multiline numberOfLines={3} />
-            <TouchableOpacity style={[styles.micBtn, { backgroundColor: colors.borderLight }]} onPress={() => Alert.alert("Voice Input", "Type food details manually or take a photo.")}>
-              <Feather name="mic" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.imageRow}>
-            <TouchableOpacity style={[styles.cameraBtn, { backgroundColor: colors.sectionBg }]} onPress={handlePickImage}>
-              <Feather name="camera" size={18} color={colors.gold} />
-              <Text style={[styles.cameraBtnText, { color: colors.gold }]}>Add Photo</Text>
-            </TouchableOpacity>
-            {mealImage && <TouchableOpacity onPress={() => setMealImage(undefined)}><Image source={{ uri: mealImage }} style={styles.previewImage} /></TouchableOpacity>}
-          </View>
-          <View style={styles.modalButtons}>
-            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => { setShowMealModal(false); setMealFood(""); setMealImage(undefined); }}>
-              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveMeal}>
-              <Text style={styles.saveText}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </KbSheet>
+        {/* ADD/EDIT MEAL MODAL */}
+        <Modal visible={showMealModal} animationType="slide" transparent>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={shStyles.overlay}>
+              <TouchableWithoutFeedback onPress={() => setShowMealModal(false)}><View style={StyleSheet.absoluteFill} /></TouchableWithoutFeedback>
+              <View style={[shStyles.sheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16, maxHeight: "92%" }]}>
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
+                  <Text style={[shStyles.title, { color: colors.text }]}>{editingMealId ? "Edit Meal" : "Add Food"}</Text>
+
+                  <View style={[styles.timeRow, { backgroundColor: colors.inputBg, borderRadius: 10 }]}>
+                    <Feather name="clock" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
+                    <TextInput style={[styles.timeInput, { color: colors.text }]} value={mealTime} onChangeText={setMealTime} placeholder="HH:MM" placeholderTextColor={colors.placeholder} />
+                  </View>
+
+                  <View style={[styles.foodInputRow, { backgroundColor: colors.inputBg, borderRadius: 10, marginTop: 10 }]}>
+                    <TextInput style={[styles.foodInput, { color: colors.text }]} value={mealFood} onChangeText={setMealFood} placeholder="Food details…" placeholderTextColor={colors.placeholder} multiline numberOfLines={3} />
+                    <TouchableOpacity style={[styles.micBtn, { backgroundColor: colors.borderLight }]} onPress={() => Alert.alert("Voice Input", "Use your device's dictation feature in the keyboard.")}>
+                      <Feather name="mic" size={18} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Nutrition section */}
+                  <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 14 }]}>Nutrition Details (optional)</Text>
+                  <View style={styles.nutGrid}>
+                    <NutInput label="Calories" unit="cal" value={mealCalories} onChange={setMealCalories} colors={colors} />
+                    <NutInput label="Protein" unit="g" value={mealProtein} onChange={setMealProtein} colors={colors} />
+                    <NutInput label="Carbs" unit="g" value={mealCarbs} onChange={setMealCarbs} colors={colors} />
+                    <NutInput label="Fats" unit="g" value={mealFats} onChange={setMealFats} colors={colors} />
+                    <NutInput label="Fiber" unit="g" value={mealFiber} onChange={setMealFiber} colors={colors} />
+                  </View>
+
+                  {/* Photos */}
+                  <View style={styles.imageSection}>
+                    <TouchableOpacity style={[styles.cameraBtn, { backgroundColor: colors.sectionBg }]} onPress={pickImages}>
+                      <Feather name="camera" size={18} color={colors.gold} />
+                      <Text style={[styles.cameraBtnText, { color: colors.gold }]}>Add Photos</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {mealImages.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                      {mealImages.map((uri, idx) => (
+                        <View key={`${uri}-${idx}`} style={{ marginRight: 8, position: "relative" }}>
+                          <Image source={{ uri }} style={styles.previewImage} />
+                          <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setMealImages((prev) => prev.filter((_, i) => i !== idx))}>
+                            <Feather name="x" size={11} color="#fff" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  )}
+
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowMealModal(false)}>
+                      <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveMeal}>
+                      <Text style={styles.saveText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
 
         {/* WATER MODAL */}
         <KbSheet visible={showWaterModal} onClose={() => { setShowWaterModal(false); setWaterManual(""); setEditingWaterId(null); }} title="Log Water" insets={insets}>
           <View style={[styles.manualRow, { marginBottom: 0 }]}>
-            <TextInput
-              style={[styles.manualInput, { backgroundColor: colors.inputBg, color: colors.text }]}
-              value={waterManual}
-              onChangeText={setWaterManual}
-              placeholder={`Amount in ${waterUnit}`}
-              placeholderTextColor={colors.placeholder}
-              keyboardType="decimal-pad"
-            />
+            <TextInput style={[styles.manualInput, { backgroundColor: colors.inputBg, color: colors.text }]} value={waterManual} onChangeText={setWaterManual} placeholder={`Amount in ${waterUnit}`} placeholderTextColor={colors.placeholder} keyboardType="decimal-pad" />
             <TouchableOpacity style={[styles.manualAddBtn, { backgroundColor: colors.teal }]} onPress={handleManualWater}>
               <Feather name="plus" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
-          {/* Today's entries */}
           {waterEntries.filter((w) => w.date === today).length > 0 && (
             <View style={[styles.waterEntryList, { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 14 }]}>
               <Text style={[styles.hint, { color: colors.textSecondary, marginBottom: 6, marginTop: 2 }]}>Today's entries</Text>
@@ -550,37 +769,21 @@ export default function DiaryScreen() {
                 <View key={w.id}>
                   {editingWaterId === w.id ? (
                     <View style={styles.waterEntryRow}>
-                      <TextInput
-                        style={[styles.manualInput, { flex: 1, backgroundColor: colors.inputBg, color: colors.text, height: 38 }]}
-                        value={editWaterAmount}
-                        onChangeText={setEditWaterAmount}
-                        keyboardType="decimal-pad"
-                        autoFocus
-                      />
+                      <TextInput style={[styles.manualInput, { flex: 1, backgroundColor: colors.inputBg, color: colors.text, height: 38 }]} value={editWaterAmount} onChangeText={setEditWaterAmount} keyboardType="decimal-pad" autoFocus />
                       <TouchableOpacity style={[styles.manualAddBtn, { backgroundColor: colors.teal, height: 38, width: 38 }]} onPress={async () => {
                         const amt = waterUnit === "gal" ? Math.round(parseFloat(editWaterAmount) * 3785.41) : Math.round(parseFloat(editWaterAmount));
-                        if (!isNaN(amt) && amt > 0) { await updateWaterEntry(w.id, amt); }
+                        if (!isNaN(amt) && amt > 0) await updateWaterEntry(w.id, amt);
                         setEditingWaterId(null);
-                      }}>
-                        <Feather name="check" size={16} color="#fff" />
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.manualAddBtn, { backgroundColor: colors.sectionBg, height: 38, width: 38 }]} onPress={() => setEditingWaterId(null)}>
-                        <Feather name="x" size={16} color={colors.textSecondary} />
-                      </TouchableOpacity>
+                      }}><Feather name="check" size={16} color="#fff" /></TouchableOpacity>
+                      <TouchableOpacity style={[styles.manualAddBtn, { backgroundColor: colors.sectionBg, height: 38, width: 38 }]} onPress={() => setEditingWaterId(null)}><Feather name="x" size={16} color={colors.textSecondary} /></TouchableOpacity>
                     </View>
                   ) : (
                     <View style={styles.waterEntryRow}>
                       <Feather name="clock" size={12} color={colors.placeholder} />
                       <Text style={[styles.waterEntryTime, { color: colors.textSecondary }]}>{w.time ?? "—"}</Text>
-                      <Text style={[styles.waterEntryAmt, { color: colors.text }]}>
-                        {waterUnit === "gal" ? `${mlToGallons(w.amountMl)} gal` : `${w.amountMl} ml`}
-                      </Text>
-                      <TouchableOpacity onPress={() => { setEditingWaterId(w.id); setEditWaterAmount(waterUnit === "gal" ? mlToGallons(w.amountMl) : String(w.amountMl)); }}>
-                        <Feather name="edit-2" size={14} color={colors.tint} />
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); deleteWaterEntry(w.id); }}>
-                        <Feather name="trash-2" size={14} color="#EF4444" />
-                      </TouchableOpacity>
+                      <Text style={[styles.waterEntryAmt, { color: colors.text }]}>{waterUnit === "gal" ? `${mlToGallons(w.amountMl)} gal` : `${w.amountMl} ml`}</Text>
+                      <TouchableOpacity onPress={() => { setEditingWaterId(w.id); setEditWaterAmount(waterUnit === "gal" ? mlToGallons(w.amountMl) : String(w.amountMl)); }}><Feather name="edit-2" size={14} color={colors.tint} /></TouchableOpacity>
+                      <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); deleteWaterEntry(w.id); }}><Feather name="trash-2" size={14} color="#EF4444" /></TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -613,12 +816,8 @@ export default function DiaryScreen() {
             ))}
           </View>
           <View style={styles.modalButtons}>
-            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowGoalModal(false)}>
-              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSaveWaterGoal}>
-              <Text style={styles.saveText}>Save Goal</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowGoalModal(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSaveWaterGoal}><Text style={styles.saveText}>Save Goal</Text></TouchableOpacity>
           </View>
         </KbSheet>
 
@@ -626,14 +825,10 @@ export default function DiaryScreen() {
         <Modal visible={showSleepSheet} animationType="slide" transparent>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
             <View style={shStyles.overlay}>
-              <TouchableWithoutFeedback onPress={() => setShowSleepSheet(false)}>
-                <View style={StyleSheet.absoluteFill} />
-              </TouchableWithoutFeedback>
+              <TouchableWithoutFeedback onPress={() => setShowSleepSheet(false)}><View style={StyleSheet.absoluteFill} /></TouchableWithoutFeedback>
               <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16, backgroundColor: colors.surface }]}>
                 <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
                 <Text style={[shStyles.title, { color: colors.text }]}>Sleep Log</Text>
-
-                {/* Time format toggle */}
                 <View style={styles.formatToggleRow}>
                   <Text style={[styles.sleepPickerLabel, { color: colors.textSecondary, flex: 1 }]}>Time Format</Text>
                   <View style={[styles.toggleGroup, { borderColor: colors.border, borderWidth: 1 }]}>
@@ -645,40 +840,22 @@ export default function DiaryScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-
                 <View style={styles.sleepPickerSection}>
                   <Text style={[styles.sleepPickerLabel, { color: colors.textSecondary }]}>Bedtime</Text>
-                  {sleepTimeFormat === "12h" ? (
-                    <SimpleTimeInput value={bedtime} onChange={setBedtime} colors={colors} />
-                  ) : (
-                    <Simple24hInput value={bedtime} onChange={setBedtime} colors={colors} />
-                  )}
+                  {sleepTimeFormat === "12h" ? <SimpleTimeInput value={bedtime} onChange={setBedtime} colors={colors} /> : <Simple24hInput value={bedtime} onChange={setBedtime} colors={colors} />}
                 </View>
                 <View style={[styles.sleepPickerSection, { marginTop: 12 }]}>
                   <Text style={[styles.sleepPickerLabel, { color: colors.textSecondary }]}>Wake Time</Text>
-                  {sleepTimeFormat === "12h" ? (
-                    <SimpleTimeInput value={wakeTime} onChange={setWakeTime} colors={colors} />
-                  ) : (
-                    <Simple24hInput value={wakeTime} onChange={setWakeTime} colors={colors} />
-                  )}
+                  {sleepTimeFormat === "12h" ? <SimpleTimeInput value={wakeTime} onChange={setWakeTime} colors={colors} /> : <Simple24hInput value={wakeTime} onChange={setWakeTime} colors={colors} />}
                 </View>
                 <View style={[styles.sleepTotalBox, { backgroundColor: colors.tealLight, marginTop: 12 }]}>
                   <Feather name="moon" size={18} color={colors.gold} />
                   <Text style={[styles.sleepTotalText, { color: colors.gold }]}>Total: {calcSleepHours(bedtime, wakeTime)}</Text>
                 </View>
-                <TextInput
-                  style={[styles.sleepNotesInput, { backgroundColor: colors.inputBg, color: colors.text, marginTop: 10 }]}
-                  value={sleepNotes} onChangeText={setSleepNotes}
-                  placeholder="Optional notes…" placeholderTextColor={colors.placeholder}
-                  multiline numberOfLines={2}
-                />
+                <TextInput style={[styles.sleepNotesInput, { backgroundColor: colors.inputBg, color: colors.text, marginTop: 10 }]} value={sleepNotes} onChangeText={setSleepNotes} placeholder="Optional notes…" placeholderTextColor={colors.placeholder} multiline numberOfLines={2} />
                 <View style={styles.modalButtons}>
-                  <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSleepSheet(false)}>
-                    <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleep}>
-                    <Text style={styles.saveText}>Save</Text>
-                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSleepSheet(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleep}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -697,12 +874,8 @@ export default function DiaryScreen() {
             ))}
           </View>
           <View style={styles.modalButtons}>
-            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSleepGoalModal(false)}>
-              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleepGoal}>
-              <Text style={styles.saveText}>Save Goal</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSleepGoalModal(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleepGoal}><Text style={styles.saveText}>Save Goal</Text></TouchableOpacity>
           </View>
         </KbSheet>
 
@@ -710,219 +883,194 @@ export default function DiaryScreen() {
         <Modal visible={showExerciseSheet} animationType="slide" transparent>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
             <View style={shStyles.overlay}>
-              <TouchableWithoutFeedback onPress={() => setShowExerciseSheet(false)}>
-                <View style={StyleSheet.absoluteFill} />
-              </TouchableWithoutFeedback>
-              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16, backgroundColor: colors.surface }]}>
+              <TouchableWithoutFeedback onPress={() => setShowExerciseSheet(false)}><View style={StyleSheet.absoluteFill} /></TouchableWithoutFeedback>
+              <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16, backgroundColor: colors.surface }]}>
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
                   <Text style={[shStyles.title, { color: colors.text }]}>Log Exercise</Text>
                   <Text style={[styles.hint, { color: colors.textSecondary }]}>Enter duration in minutes for each activity</Text>
-                  <View style={{ marginBottom: 4 }}>
-                    <ActivityInput icon="activity" label="Running" value={exRunning} onChange={setExRunning} colors={colors} />
-                    <ActivityInput icon="navigation" label="Walking" value={exWalking} onChange={setExWalking} colors={colors} />
-                    <ActivityInput icon="zap" label="Strength Training" value={exStrength} onChange={setExStrength} colors={colors} />
-                    <ActivityInput icon="heart" label="Cardio" value={exCardio} onChange={setExCardio} colors={colors} />
+                  <ActivityInput icon="activity" label="Running" value={exRunning} onChange={setExRunning} colors={colors} />
+                  <ActivityInput icon="navigation" label="Walking" value={exWalking} onChange={setExWalking} colors={colors} />
+                  <ActivityInput icon="zap" label="Strength Training" value={exStrength} onChange={setExStrength} colors={colors} />
+                  <ActivityInput icon="heart" label="Cardio" value={exCardio} onChange={setExCardio} colors={colors} />
+
+                  {/* Custom activities */}
+                  {customActivities.length > 0 && (
+                    <View style={{ marginTop: 4 }}>
+                      {customActivities.map((a, i) => (
+                        <View key={i} style={styles.activityRow}>
+                          <View style={[styles.activityIconBox, { backgroundColor: colors.sectionBg }]}>
+                            <Feather name="plus-circle" size={18} color={colors.gold} />
+                          </View>
+                          <Text style={[styles.activityLabel, { color: colors.text }]}>{a.name}</Text>
+                          <View style={[styles.activityInput, { backgroundColor: colors.inputBg, alignItems: "center", justifyContent: "center" }]}>
+                            <Text style={[styles.activityUnit, { color: colors.text, fontSize: 20, fontWeight: "600", width: "auto" }]}>{a.minutes}</Text>
+                          </View>
+                          <Text style={[styles.activityUnit, { color: colors.textSecondary }]}>min</Text>
+                          <TouchableOpacity onPress={() => setCustomActivities((prev) => prev.filter((_, j) => j !== i))}>
+                            <Feather name="x" size={16} color="#EF4444" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Add custom activity */}
+                  <View style={[styles.customActivitySection, { backgroundColor: colors.sectionBg, borderRadius: 12 }]}>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginBottom: 8 }]}>Add Custom Activity</Text>
+                    <View style={styles.customActivityRow}>
+                      <TextInput style={[styles.customActivityInput, { backgroundColor: colors.inputBg, color: colors.text, flex: 1 }]} value={newActivityName} onChangeText={setNewActivityName} placeholder="e.g. Swimming, Cycling…" placeholderTextColor={colors.placeholder} />
+                      <TextInput style={[styles.customActivityMins, { backgroundColor: colors.inputBg, color: colors.text }]} value={newActivityMins} onChangeText={setNewActivityMins} placeholder="Min" placeholderTextColor={colors.placeholder} keyboardType="number-pad" />
+                      <TouchableOpacity style={[styles.manualAddBtn, { backgroundColor: colors.gold, height: 44, width: 44 }]} onPress={handleAddCustomActivity}>
+                        <Feather name="plus" size={18} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={[styles.exTotalRow, { backgroundColor: colors.sectionBg }]}>
+
+                  <View style={[styles.exTotalRow, { backgroundColor: colors.sectionBg, marginTop: 12 }]}>
                     <Text style={[styles.exTotalLabel, { color: colors.textSecondary }]}>Total Active Time</Text>
                     <Text style={[styles.exTotalValue, { color: colors.gold }]}>{exTotalSheet} min</Text>
                   </View>
                   <View style={styles.modalButtons}>
-                    <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseSheet(false)}>
-                      <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExercise}>
-                      <Text style={styles.saveText}>Save</Text>
-                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseSheet(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExercise}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
                   </View>
-                </View>
-              </TouchableWithoutFeedback>
+                </ScrollView>
+              </View>
             </View>
           </KeyboardAvoidingView>
         </Modal>
 
         {/* EXERCISE GOAL MODAL */}
         <KbSheet visible={showExerciseGoalModal} onClose={() => setShowExerciseGoalModal(false)} title="Set Exercise Goal" insets={insets}>
-          <Text style={[styles.hint, { color: colors.textSecondary }]}>Recommended: 30+ minutes per day</Text>
-          <Text style={[styles.hint, { color: colors.textSecondary, marginBottom: 4 }]}>Tap a preset to apply instantly, or type a custom value:</Text>
           <View style={[styles.presetsRow, { marginBottom: 12, flexWrap: "wrap" }]}>
             {EXERCISE_PRESETS.map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[styles.presetChip, { backgroundColor: exerciseGoalMinutes === m ? colors.gold : colors.sectionBg, borderColor: exerciseGoalMinutes === m ? colors.gold : colors.border, borderWidth: 1 }]}
-                onPress={() => handleQuickExerciseGoal(m)}
-              >
+              <TouchableOpacity key={m} style={[styles.presetChip, { backgroundColor: exerciseGoalMinutes === m ? colors.gold : colors.sectionBg, borderColor: exerciseGoalMinutes === m ? colors.gold : colors.border, borderWidth: 1 }]} onPress={() => handleQuickExerciseGoal(m)}>
                 <Text style={[styles.presetChipText, { color: exerciseGoalMinutes === m ? "#fff" : colors.text }]}>{m} min</Text>
               </TouchableOpacity>
             ))}
           </View>
-          <View style={[styles.manualRow, { marginBottom: 8 }]}>
-            <TextInput
-              style={[styles.goalInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, borderWidth: 1, flex: 1 }]}
-              value={exerciseGoalInput}
-              onChangeText={setExerciseGoalInput}
-              keyboardType="number-pad"
-              placeholder="Minutes"
-              placeholderTextColor={colors.placeholder}
-            />
-            <Text style={[styles.activityUnit, { color: colors.textSecondary, marginLeft: 8, alignSelf: "center" }]}>min</Text>
-          </View>
+          <TextInput style={[styles.goalInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, borderWidth: 1, width: "100%" }]} value={exerciseGoalInput} onChangeText={setExerciseGoalInput} keyboardType="number-pad" placeholder="Minutes" placeholderTextColor={colors.placeholder} />
           <View style={styles.modalButtons}>
-            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseGoalModal(false)}>
-              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExerciseGoal}>
-              <Text style={styles.saveText}>Save Goal</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseGoalModal(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExerciseGoal}><Text style={styles.saveText}>Save Goal</Text></TouchableOpacity>
           </View>
         </KbSheet>
 
         {/* WEIGHT SHEET */}
         <KbSheet visible={showWeightSheet} onClose={() => setShowWeightSheet(false)} title={todayWeight ? "Edit Weight" : "Log Weight"} insets={insets}>
           <View style={styles.goalInputRow}>
-            <TextInput
-              style={[styles.goalInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, borderWidth: 1, flex: 1 }]}
-              value={weightInput}
-              onChangeText={setWeightInput}
-              keyboardType="decimal-pad"
-              placeholder={weightUnit === "kg" ? "e.g. 72.5" : "e.g. 159.8"}
-              placeholderTextColor={colors.placeholder}
-            />
+            <TextInput style={[styles.goalInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, borderWidth: 1, flex: 1 }]} value={weightInput} onChangeText={setWeightInput} keyboardType="decimal-pad" placeholder={weightUnit === "kg" ? "e.g. 72.5" : "e.g. 159.8"} placeholderTextColor={colors.placeholder} />
             <View style={[styles.toggleGroup, { borderColor: colors.border, borderWidth: 1, marginLeft: 10 }]}>
-              <TouchableOpacity style={[styles.toggleBtn, weightUnit === "kg" && { backgroundColor: colors.purple }]} onPress={() => setWeightUnit("kg")}>
-                <Text style={[styles.toggleBtnText, { color: weightUnit === "kg" ? "#fff" : colors.textSecondary }]}>kg</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.toggleBtn, weightUnit === "lbs" && { backgroundColor: colors.purple }]} onPress={() => setWeightUnit("lbs")}>
-                <Text style={[styles.toggleBtnText, { color: weightUnit === "lbs" ? "#fff" : colors.textSecondary }]}>lbs</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={[styles.toggleBtn, weightUnit === "kg" && { backgroundColor: colors.purple }]} onPress={() => setWeightUnit("kg")}><Text style={[styles.toggleBtnText, { color: weightUnit === "kg" ? "#fff" : colors.textSecondary }]}>kg</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.toggleBtn, weightUnit === "lbs" && { backgroundColor: colors.purple }]} onPress={() => setWeightUnit("lbs")}><Text style={[styles.toggleBtnText, { color: weightUnit === "lbs" ? "#fff" : colors.textSecondary }]}>lbs</Text></TouchableOpacity>
             </View>
           </View>
-          <View style={[styles.presetsRow, { marginBottom: 12, flexWrap: "wrap" }]}>
-            {WEIGHT_KG_PRESETS.map((kg) => {
-              const display = weightUnit === "kg" ? `${kg}kg` : `${kgToLbs(kg)}lbs`;
-              return (
-                <TouchableOpacity key={kg} style={[styles.presetChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1 }]}
-                  onPress={() => setWeightInput(weightUnit === "kg" ? String(kg) : kgToLbs(kg))}>
-                  <Text style={[styles.presetChipText, { color: colors.text }]}>{display}</Text>
-                </TouchableOpacity>
-              );
-            })}
+          <View style={[styles.presetsRow, { flexWrap: "wrap", marginBottom: 12 }]}>
+            {WEIGHT_KG_PRESETS.map((kg) => (
+              <TouchableOpacity key={kg} style={[styles.presetChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1 }]} onPress={() => setWeightInput(weightUnit === "kg" ? String(kg) : kgToLbs(kg))}>
+                <Text style={[styles.presetChipText, { color: colors.text }]}>{weightUnit === "kg" ? `${kg}kg` : `${kgToLbs(kg)}lbs`}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-          <TextInput
-            style={[styles.sleepNotesInput, { backgroundColor: colors.inputBg, color: colors.text }]}
-            value={weightNotes}
-            onChangeText={setWeightNotes}
-            placeholder="Optional notes…"
-            placeholderTextColor={colors.placeholder}
-            multiline
-            numberOfLines={2}
-          />
+          <TextInput style={[styles.sleepNotesInput, { backgroundColor: colors.inputBg, color: colors.text }]} value={weightNotes} onChangeText={setWeightNotes} placeholder="Optional notes…" placeholderTextColor={colors.placeholder} multiline numberOfLines={2} />
           {todayWeight && (
             <TouchableOpacity style={[styles.deleteWeightBtn, { borderColor: "#EF4444" }]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); Alert.alert("Delete entry?", undefined, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => { deleteWeightEntry(todayWeight.id); setShowWeightSheet(false); } }]); }}>
-              <Feather name="trash-2" size={14} color="#EF4444" />
-              <Text style={[styles.deleteWeightText]}>Delete today's entry</Text>
+              <Feather name="trash-2" size={14} color="#EF4444" /><Text style={styles.deleteWeightText}>Delete today's entry</Text>
             </TouchableOpacity>
           )}
           <View style={styles.modalButtons}>
-            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowWeightSheet(false)}>
-              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSaveWeight}>
-              <Text style={styles.saveText}>Save</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowWeightSheet(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSaveWeight}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
           </View>
         </KbSheet>
 
         {/* WEIGHT GOAL MODAL */}
         <KbSheet visible={showWeightGoalModal} onClose={() => setShowWeightGoalModal(false)} title="Set Weight Goal" insets={insets}>
           <View style={styles.goalInputRow}>
-            <TextInput
-              style={[styles.goalInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, borderWidth: 1, flex: 1 }]}
-              value={weightGoalInput}
-              onChangeText={setWeightGoalInput}
-              keyboardType="decimal-pad"
-              placeholder={weightGoalUnit === "kg" ? "e.g. 70" : "e.g. 154"}
-              placeholderTextColor={colors.placeholder}
-            />
+            <TextInput style={[styles.goalInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, borderWidth: 1, flex: 1 }]} value={weightGoalInput} onChangeText={setWeightGoalInput} keyboardType="decimal-pad" placeholder={weightGoalUnit === "kg" ? "e.g. 70" : "e.g. 154"} placeholderTextColor={colors.placeholder} />
             <View style={[styles.toggleGroup, { borderColor: colors.border, borderWidth: 1, marginLeft: 10 }]}>
-              <TouchableOpacity style={[styles.toggleBtn, weightGoalUnit === "kg" && { backgroundColor: colors.purple }]} onPress={() => setWeightGoalUnit("kg")}>
-                <Text style={[styles.toggleBtnText, { color: weightGoalUnit === "kg" ? "#fff" : colors.textSecondary }]}>kg</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.toggleBtn, weightGoalUnit === "lbs" && { backgroundColor: colors.purple }]} onPress={() => setWeightGoalUnit("lbs")}>
-                <Text style={[styles.toggleBtnText, { color: weightGoalUnit === "lbs" ? "#fff" : colors.textSecondary }]}>lbs</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={[styles.toggleBtn, weightGoalUnit === "kg" && { backgroundColor: colors.purple }]} onPress={() => setWeightGoalUnit("kg")}><Text style={[styles.toggleBtnText, { color: weightGoalUnit === "kg" ? "#fff" : colors.textSecondary }]}>kg</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.toggleBtn, weightGoalUnit === "lbs" && { backgroundColor: colors.purple }]} onPress={() => setWeightGoalUnit("lbs")}><Text style={[styles.toggleBtnText, { color: weightGoalUnit === "lbs" ? "#fff" : colors.textSecondary }]}>lbs</Text></TouchableOpacity>
             </View>
           </View>
-          <View style={[styles.presetsRow, { flexWrap: "wrap", marginBottom: 12 }]}>
-            {WEIGHT_KG_PRESETS.map((kg) => {
-              const display = weightGoalUnit === "kg" ? `${kg}kg` : `${kgToLbs(kg)}lbs`;
-              return (
-                <TouchableOpacity key={kg} style={[styles.presetChip, { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1 }]}
-                  onPress={() => setWeightGoalInput(weightGoalUnit === "kg" ? String(kg) : kgToLbs(kg))}>
-                  <Text style={[styles.presetChipText, { color: colors.text }]}>{display}</Text>
-                </TouchableOpacity>
-              );
-            })}
+          <View style={styles.modalButtons}>
+            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowWeightGoalModal(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSaveWeightGoal}><Text style={styles.saveText}>Save Goal</Text></TouchableOpacity>
+          </View>
+        </KbSheet>
+
+        {/* NUTRITION GOAL MODAL */}
+        <KbSheet visible={showNutritionGoalModal} onClose={() => setShowNutritionGoalModal(false)} title="Set Nutrition Goals" insets={insets} scrollable>
+          <View style={styles.nutGrid}>
+            <NutInput label="Calories" unit="cal" value={nutCalGoal} onChange={setNutCalGoal} colors={colors} />
+            <NutInput label="Protein" unit="g" value={nutProGoal} onChange={setNutProGoal} colors={colors} />
+            <NutInput label="Carbs" unit="g" value={nutCarbGoal} onChange={setNutCarbGoal} colors={colors} />
+            <NutInput label="Fats" unit="g" value={nutFatGoal} onChange={setNutFatGoal} colors={colors} />
+            <NutInput label="Fiber" unit="g" value={nutFibGoal} onChange={setNutFibGoal} colors={colors} />
           </View>
           <View style={styles.modalButtons}>
-            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowWeightGoalModal(false)}>
-              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSaveWeightGoal}>
-              <Text style={styles.saveText}>Save Goal</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowNutritionGoalModal(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSaveNutritionGoals}><Text style={styles.saveText}>Save Goals</Text></TouchableOpacity>
           </View>
         </KbSheet>
 
         {/* IMAGE VIEWER */}
         <Modal visible={!!showImageViewer} animationType="fade" transparent>
-          <TouchableOpacity style={styles.imageViewerOverlay} activeOpacity={1} onPress={() => setShowImageViewer(null)}>
+          <View style={styles.imageViewerOverlay}>
             {showImageViewer && <Image source={{ uri: showImageViewer }} style={styles.fullImage} resizeMode="contain" />}
+            {viewerImages.length > 1 && (
+              <View style={styles.viewerNav}>
+                {viewerIndex > 0 && (
+                  <TouchableOpacity style={styles.viewerNavBtn} onPress={() => { const i = viewerIndex - 1; setViewerIndex(i); setShowImageViewer(viewerImages[i]); }}>
+                    <Feather name="chevron-left" size={28} color="#fff" />
+                  </TouchableOpacity>
+                )}
+                <Text style={styles.viewerCounter}>{viewerIndex + 1} / {viewerImages.length}</Text>
+                {viewerIndex < viewerImages.length - 1 && (
+                  <TouchableOpacity style={styles.viewerNavBtn} onPress={() => { const i = viewerIndex + 1; setViewerIndex(i); setShowImageViewer(viewerImages[i]); }}>
+                    <Feather name="chevron-right" size={28} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
             <TouchableOpacity style={styles.closeBtn} onPress={() => setShowImageViewer(null)}>
               <Feather name="x" size={24} color="#fff" />
             </TouchableOpacity>
-          </TouchableOpacity>
+          </View>
         </Modal>
       </View>
     </TouchableWithoutFeedback>
   );
 }
 
-function GoalProgressBar({ pct }: { pct: number }) {
-  const color = getProgressColor(pct);
+function NutProgressRow({ label, current, goal, unit, color, colors }: { label: string; current: number; goal: number; unit: string; color: string; colors: any }) {
+  const pct = Math.min((current / goal) * 100, 100);
+  const barColor = getProgressColor(pct);
   return (
-    <View style={[styles.progressTrack, { backgroundColor: "rgba(0,0,0,0.08)" }]}>
-      <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: color }]} />
-    </View>
-  );
-}
-
-function SectionCard({ title, colors, onAdd, children }: { title: string; colors: typeof Colors.light; onAdd: () => void; children: React.ReactNode }) {
-  return (
-    <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
-      <View style={styles.cardHeader}>
-        <Text style={[styles.cardTitle, { color: colors.text }]}>{title}</Text>
-        <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={onAdd}>
-          <Feather name="plus" size={16} color="#fff" />
-        </TouchableOpacity>
+    <View style={styles.nutProgressRow}>
+      <View style={styles.nutProgressLabelRow}>
+        <Text style={[styles.nutProgressLabel, { color: colors.text }]}>{label}</Text>
+        <Text style={[styles.nutProgressVal, { color: colors.textSecondary }]}>{current}{unit} / {goal}{unit}</Text>
       </View>
-      {children}
+      <View style={[styles.progressTrack, { backgroundColor: "rgba(0,0,0,0.08)" }]}>
+        <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+      </View>
     </View>
   );
 }
 
-function EmptyState({ icon, text, colors }: { icon: string; text: string; colors: typeof Colors.light }) {
+function NutInput({ label, unit, value, onChange, colors }: { label: string; unit: string; value: string; onChange: (v: string) => void; colors: any }) {
   return (
-    <View style={styles.emptyState}>
-      <Feather name={icon as any} size={24} color={colors.placeholder} />
-      <Text style={[styles.emptyText, { color: colors.placeholder }]}>{text}</Text>
+    <View style={styles.nutInputItem}>
+      <Text style={[styles.nutInputLabel, { color: colors.textSecondary }]}>{label} ({unit})</Text>
+      <TextInput style={[styles.nutInputField, { backgroundColor: colors.inputBg, color: colors.text }]} value={value} onChangeText={onChange} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.placeholder} />
     </View>
   );
 }
 
-function SleepStat({ label, value, colors, highlight }: { label: string; value: string; colors: typeof Colors.light; highlight?: boolean }) {
+function SleepStat({ label, value, colors, highlight }: { label: string; value: string; colors: any; highlight?: boolean }) {
   return (
     <View style={styles.sleepStat}>
       <Text style={[styles.sleepStatLabel, { color: colors.textSecondary }]}>{label}</Text>
@@ -931,12 +1079,12 @@ function SleepStat({ label, value, colors, highlight }: { label: string; value: 
   );
 }
 
-function ExerciseTile({ icon, label, value, colors }: { icon: string; label: string; value: number; colors: typeof Colors.light }) {
+function ExerciseTile({ icon, label, value, colors }: { icon: string; label: string; value: number; colors: any }) {
   return (
     <View style={[styles.exTile, { backgroundColor: colors.sectionBg }]}>
       <Feather name={icon as any} size={18} color={colors.gold} style={{ marginBottom: 4 }} />
       <Text style={[styles.exTileValue, { color: colors.text }]}>{value} min</Text>
-      <Text style={[styles.exTileLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[styles.exTileLabel, { color: colors.textSecondary }]} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -944,18 +1092,9 @@ function ExerciseTile({ icon, label, value, colors }: { icon: string; label: str
 function ActivityInput({ icon, label, value, onChange, colors }: { icon: string; label: string; value: string; onChange: (v: string) => void; colors: any }) {
   return (
     <View style={styles.activityRow}>
-      <View style={[styles.activityIconBox, { backgroundColor: colors.sectionBg }]}>
-        <Feather name={icon as any} size={18} color={colors.gold} />
-      </View>
+      <View style={[styles.activityIconBox, { backgroundColor: colors.sectionBg }]}><Feather name={icon as any} size={18} color={colors.gold} /></View>
       <Text style={[styles.activityLabel, { color: colors.text }]}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        keyboardType="number-pad"
-        placeholder="0"
-        placeholderTextColor={colors.placeholder}
-        style={[styles.activityInput, { backgroundColor: colors.inputBg, color: colors.text }]}
-      />
+      <TextInput value={value} onChangeText={onChange} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.placeholder} style={[styles.activityInput, { backgroundColor: colors.inputBg, color: colors.text }]} />
       <Text style={[styles.activityUnit, { color: colors.textSecondary }]}>min</Text>
     </View>
   );
@@ -972,16 +1111,47 @@ const styles = StyleSheet.create({
   addBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   emptyState: { alignItems: "center", paddingVertical: 20, gap: 8 },
   emptyText: { fontSize: 14 },
-  tableHeader: { flexDirection: "row", paddingBottom: 8, borderBottomWidth: 1 },
-  thTime: { width: 60, fontSize: 12, fontWeight: "600" as const },
-  thFood: { flex: 1, fontSize: 12, fontWeight: "600" as const },
-  thPhoto: { width: 50, fontSize: 12, fontWeight: "600" as const, textAlign: "center" },
-  tableRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 0.5 },
-  tdTime: { width: 60, fontSize: 13 },
-  tdFood: { flex: 1, fontSize: 13, paddingRight: 8 },
-  tdPhoto: { width: 50, alignItems: "center" },
+  tableHeader: { flexDirection: "row", paddingBottom: 8, borderBottomWidth: 1, alignItems: "center" },
+  thTime: { width: 46, fontSize: 11, fontWeight: "600" as const },
+  thFood: { flex: 1, fontSize: 11, fontWeight: "600" as const },
+  thNut: { width: 0 },
+  thPhoto: { width: 46, fontSize: 11, fontWeight: "600" as const, textAlign: "center" },
+  mealRow: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 10, borderTopWidth: 0.5, gap: 6 },
+  tdTime: { width: 46, fontSize: 12, paddingTop: 2 },
+  tdFoodCol: { flex: 1 },
+  foodName: { fontSize: 13 },
+  nutTagRow: { flexDirection: "row", flexWrap: "wrap", gap: 3, marginTop: 4 },
+  nutBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
+  nutBadgeText: { fontSize: 10, fontWeight: "600" as const },
+  tdNutCol: { width: 0 },
+  nutEmpty: { fontSize: 12 },
+  tdPhotoCol: { width: 46, alignItems: "center", paddingTop: 2 },
   thumbnail: { width: 40, height: 40, borderRadius: 6 },
   noPhoto: { width: 40, height: 40, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  photoCountBadge: { position: "absolute", bottom: 2, right: 2, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 6, minWidth: 16, alignItems: "center" },
+  photoCountText: { color: "#fff", fontSize: 9, fontWeight: "700" as const },
+  mealActions: { flexDirection: "column", gap: 4, paddingTop: 2 },
+  mealActionBtn: { width: 26, height: 26, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  nutProgressSection: { borderTopWidth: 0.5, marginTop: 12, paddingTop: 12 },
+  nutProgressHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  nutProgressTitle: { fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.4 },
+  nutGoalBtn: { fontSize: 12, fontWeight: "600" as const },
+  nutProgressRow: { marginBottom: 8 },
+  nutProgressLabelRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 3 },
+  nutProgressLabel: { fontSize: 12, fontWeight: "500" as const },
+  nutProgressVal: { fontSize: 11 },
+  nutGoalHint: { flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 0.5, paddingTop: 12, marginTop: 8 },
+  nutGoalHintText: { fontSize: 12 },
+  sectionLabel: { fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.5, marginBottom: 6 },
+  nutGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  nutInputItem: { width: "47%" },
+  nutInputLabel: { fontSize: 11, fontWeight: "500" as const, marginBottom: 4 },
+  nutInputField: { height: 44, borderRadius: 10, paddingHorizontal: 10, fontSize: 15 },
+  imageSection: { flexDirection: "row", alignItems: "center", marginTop: 12 },
+  cameraBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  cameraBtnText: { fontSize: 14, fontWeight: "500" as const },
+  previewImage: { width: 72, height: 72, borderRadius: 8 },
+  removePhotoBtn: { position: "absolute", top: 3, right: 3, backgroundColor: "rgba(0,0,0,0.65)", width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   waterHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   waterTitleRow: { flexDirection: "row", alignItems: "center" },
   waterHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -1013,25 +1183,25 @@ const styles = StyleSheet.create({
   exTileLabel: { fontSize: 10 },
   activityRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   activityIconBox: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  activityLabel: { flex: 1, fontSize: 15, fontWeight: "500" as const },
-  activityInput: { width: 100, height: 48, borderRadius: 10, textAlign: "center", fontSize: 20, fontWeight: "600" as const },
+  activityLabel: { flex: 1, fontSize: 14, fontWeight: "500" as const },
+  activityInput: { width: 90, height: 48, borderRadius: 10, textAlign: "center", fontSize: 20, fontWeight: "600" as const },
   activityUnit: { fontSize: 13, width: 30 },
+  customActivitySection: { padding: 12, marginTop: 8, marginBottom: 8 },
+  customActivityRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  customActivityInput: { height: 44, borderRadius: 10, paddingHorizontal: 12, fontSize: 14 },
+  customActivityMins: { width: 60, height: 44, borderRadius: 10, textAlign: "center", fontSize: 16, fontWeight: "600" as const },
+  exTotalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 12, borderRadius: 10 },
+  exTotalLabel: { fontSize: 14 },
+  exTotalValue: { fontSize: 18, fontWeight: "700" as const },
   waterEntryList: { paddingTop: 8 },
   waterEntryRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
   waterEntryTime: { fontSize: 12, minWidth: 50 },
   waterEntryAmt: { flex: 1, fontSize: 13, fontWeight: "500" as const },
-  exTotalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 12, marginTop: 4, borderRadius: 10 },
-  exTotalLabel: { fontSize: 14 },
-  exTotalValue: { fontSize: 18, fontWeight: "700" as const },
   timeRow: { flexDirection: "row", alignItems: "center", height: 48 },
   timeInput: { flex: 1, paddingHorizontal: 12, fontSize: 16 },
   foodInputRow: { flexDirection: "row", alignItems: "flex-start", minHeight: 80, padding: 12 },
   foodInput: { flex: 1, fontSize: 15, lineHeight: 22 },
   micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginLeft: 8, marginTop: 2 },
-  imageRow: { flexDirection: "row", alignItems: "center", marginTop: 12, gap: 12 },
-  cameraBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
-  cameraBtnText: { fontSize: 14, fontWeight: "500" as const },
-  previewImage: { width: 64, height: 64, borderRadius: 8 },
   modalButtons: { flexDirection: "row", gap: 12, marginTop: 16 },
   cancelBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: "center" },
   cancelText: { fontSize: 15, fontWeight: "600" as const },
@@ -1049,6 +1219,9 @@ const styles = StyleSheet.create({
   imageViewerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center" },
   fullImage: { width: "100%", height: "80%" },
   closeBtn: { position: "absolute", top: 60, right: 20, width: 44, height: 44, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  viewerNav: { flexDirection: "row", alignItems: "center", gap: 20, marginTop: 16 },
+  viewerNavBtn: { padding: 8 },
+  viewerCounter: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
   deleteWeightBtn: { flexDirection: "row", alignItems: "center", gap: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", marginTop: 8, justifyContent: "center" },
   deleteWeightText: { color: "#EF4444", fontSize: 13, fontWeight: "600" as const },
 });

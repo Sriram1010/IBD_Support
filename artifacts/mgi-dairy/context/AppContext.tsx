@@ -7,6 +7,12 @@ export interface MealEntry {
   time: string;
   foodDetails: string;
   imagePath?: string;
+  images?: string[];
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fats?: number;
+  fiber?: number;
 }
 
 export interface WaterEntry {
@@ -24,6 +30,11 @@ export interface SleepLog {
   notes: string;
 }
 
+export interface CustomActivity {
+  name: string;
+  minutes: number;
+}
+
 export interface ExerciseLog {
   id: string;
   date: string;
@@ -31,6 +42,7 @@ export interface ExerciseLog {
   walking: number;
   strengthTraining: number;
   cardio: number;
+  customActivities?: CustomActivity[];
 }
 
 export interface BowelLog {
@@ -103,7 +115,13 @@ interface AppContextType {
   sleepGoalHours: number;
   exerciseGoalMinutes: number;
   weightGoalKg: number;
+  calorieGoal: number;
+  proteinGoal: number;
+  carbsGoal: number;
+  fatsGoal: number;
+  fiberGoal: number;
   addMeal: (meal: Omit<MealEntry, "id">) => Promise<void>;
+  updateMeal: (id: string, meal: Partial<MealEntry>) => Promise<void>;
   deleteMeal: (id: string) => Promise<void>;
   addWaterEntry: (entry: Omit<WaterEntry, "id">) => Promise<void>;
   deleteWaterEntry: (id: string) => Promise<void>;
@@ -129,6 +147,11 @@ interface AppContextType {
   setSleepGoalHours: (h: number) => Promise<void>;
   setExerciseGoalMinutes: (m: number) => Promise<void>;
   setWeightGoalKg: (kg: number) => Promise<void>;
+  setCalorieGoal: (v: number) => Promise<void>;
+  setProteinGoal: (v: number) => Promise<void>;
+  setCarbsGoal: (v: number) => Promise<void>;
+  setFatsGoal: (v: number) => Promise<void>;
+  setFiberGoal: (v: number) => Promise<void>;
   getTodayWaterTotal: (date: string) => number;
   getTodaySleep: (date: string) => SleepLog | undefined;
   getTodayExercise: (date: string) => ExerciseLog | undefined;
@@ -152,6 +175,11 @@ const STORAGE_KEYS = {
   SLEEP_GOAL: "mgi_sleep_goal",
   EXERCISE_GOAL: "mgi_exercise_goal",
   WEIGHT_GOAL: "mgi_weight_goal",
+  CALORIE_GOAL: "mgi_calorie_goal",
+  PROTEIN_GOAL: "mgi_protein_goal",
+  CARBS_GOAL: "mgi_carbs_goal",
+  FATS_GOAL: "mgi_fats_goal",
+  FIBER_GOAL: "mgi_fiber_goal",
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -189,6 +217,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sleepGoalHours, setSleepGoalHoursState] = useState<number>(8);
   const [exerciseGoalMinutes, setExerciseGoalMinutesState] = useState<number>(30);
   const [weightGoalKg, setWeightGoalKgState] = useState<number>(70);
+  const [calorieGoal, setCalorieGoalState] = useState<number>(2000);
+  const [proteinGoal, setProteinGoalState] = useState<number>(50);
+  const [carbsGoal, setCarbsGoalState] = useState<number>(250);
+  const [fatsGoal, setFatsGoalState] = useState<number>(65);
+  const [fiberGoal, setFiberGoalState] = useState<number>(25);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -205,11 +238,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loadData<TriggerEntry>(STORAGE_KEYS.TRIGGERS),
         loadData<SymptomLog>(STORAGE_KEYS.SYMPTOMS),
       ]);
-      const [wg, sg, eg, wtg] = await Promise.all([
+      const [wg, sg, eg, wtg, cg, pg, crg, fg, fibg] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.WATER_GOAL),
         AsyncStorage.getItem(STORAGE_KEYS.SLEEP_GOAL),
         AsyncStorage.getItem(STORAGE_KEYS.EXERCISE_GOAL),
         AsyncStorage.getItem(STORAGE_KEYS.WEIGHT_GOAL),
+        AsyncStorage.getItem(STORAGE_KEYS.CALORIE_GOAL),
+        AsyncStorage.getItem(STORAGE_KEYS.PROTEIN_GOAL),
+        AsyncStorage.getItem(STORAGE_KEYS.CARBS_GOAL),
+        AsyncStorage.getItem(STORAGE_KEYS.FATS_GOAL),
+        AsyncStorage.getItem(STORAGE_KEYS.FIBER_GOAL),
       ]);
       setMeals(m);
       setWaterEntries(w);
@@ -225,6 +263,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (sg) setSleepGoalHoursState(parseFloat(sg));
       if (eg) setExerciseGoalMinutesState(parseInt(eg, 10));
       if (wtg) setWeightGoalKgState(parseFloat(wtg));
+      if (cg) setCalorieGoalState(parseInt(cg, 10));
+      if (pg) setProteinGoalState(parseInt(pg, 10));
+      if (crg) setCarbsGoalState(parseInt(crg, 10));
+      if (fg) setFatsGoalState(parseInt(fg, 10));
+      if (fibg) setFiberGoalState(parseInt(fibg, 10));
       setIsLoading(false);
     };
     init();
@@ -233,6 +276,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addMeal = useCallback(async (meal: Omit<MealEntry, "id">) => {
     const n: MealEntry = { ...meal, id: generateId() };
     setMeals((p) => { const u = [...p, n]; saveData(STORAGE_KEYS.MEALS, u); return u; });
+  }, []);
+
+  const updateMeal = useCallback(async (id: string, meal: Partial<MealEntry>) => {
+    setMeals((p) => { const u = p.map((m) => m.id === id ? { ...m, ...meal } : m); saveData(STORAGE_KEYS.MEALS, u); return u; });
   }, []);
 
   const deleteMeal = useCallback(async (id: string) => {
@@ -371,6 +418,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(STORAGE_KEYS.WEIGHT_GOAL, String(kg));
   }, []);
 
+  const setCalorieGoal = useCallback(async (v: number) => {
+    setCalorieGoalState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.CALORIE_GOAL, String(v));
+  }, []);
+
+  const setProteinGoal = useCallback(async (v: number) => {
+    setProteinGoalState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.PROTEIN_GOAL, String(v));
+  }, []);
+
+  const setCarbsGoal = useCallback(async (v: number) => {
+    setCarbsGoalState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.CARBS_GOAL, String(v));
+  }, []);
+
+  const setFatsGoal = useCallback(async (v: number) => {
+    setFatsGoalState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.FATS_GOAL, String(v));
+  }, []);
+
+  const setFiberGoal = useCallback(async (v: number) => {
+    setFiberGoalState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.FIBER_GOAL, String(v));
+  }, []);
+
   const getTodayWaterTotal = useCallback(
     (date: string) => waterEntries.filter((w) => w.date === date).reduce((sum, w) => sum + w.amountMl, 0),
     [waterEntries]
@@ -402,13 +474,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         meals, waterEntries, sleepLogs, exerciseLogs, bowelLogs, weightLogs,
         foodTriggers, medications, triggers, symptomLogs,
         waterGoalMl, sleepGoalHours, exerciseGoalMinutes, weightGoalKg,
-        addMeal, deleteMeal, addWaterEntry, deleteWaterEntry, updateWaterEntry, addSleepLog, updateSleepLog,
+        calorieGoal, proteinGoal, carbsGoal, fatsGoal, fiberGoal,
+        addMeal, updateMeal, deleteMeal,
+        addWaterEntry, deleteWaterEntry, updateWaterEntry,
+        addSleepLog, updateSleepLog,
         saveExerciseLog, saveBowelLog, deleteBowelPhoto,
         saveWeightEntry, deleteWeightEntry,
         addFoodTrigger, updateFoodTrigger, deleteFoodTrigger,
         addMedication, updateMedication, deleteMedication,
         addTrigger, deleteTrigger, addSymptomLog, updateSymptomLog,
         setWaterGoalMl, setSleepGoalHours, setExerciseGoalMinutes, setWeightGoalKg,
+        setCalorieGoal, setProteinGoal, setCarbsGoal, setFatsGoal, setFiberGoal,
         getTodayWaterTotal, getTodaySleep, getTodayExercise, getBowelLog, getWeightEntry,
         isLoading,
       }}
