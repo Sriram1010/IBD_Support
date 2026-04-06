@@ -100,6 +100,21 @@ export interface SymptomLog {
   stoolType: number;
 }
 
+export interface MenuLink {
+  url: string;
+  label?: string;
+}
+
+export interface MenuItem {
+  id: string;
+  weekStart: string;
+  dayOfWeek: number;
+  time: string;
+  recipe: string;
+  notes: string;
+  links: MenuLink[];
+}
+
 interface AppContextType {
   meals: MealEntry[];
   waterEntries: WaterEntry[];
@@ -141,6 +156,11 @@ interface AppContextType {
   deleteMedication: (id: string) => Promise<void>;
   addTrigger: (trigger: Omit<TriggerEntry, "id">) => Promise<void>;
   deleteTrigger: (id: string) => Promise<void>;
+  menuItems: MenuItem[];
+  addMenuItem: (item: Omit<MenuItem, "id">) => Promise<void>;
+  updateMenuItem: (id: string, item: Partial<MenuItem>) => Promise<void>;
+  deleteMenuItem: (id: string) => Promise<void>;
+  getWeekMenuItems: (weekStart: string) => MenuItem[];
   addSymptomLog: (log: Omit<SymptomLog, "id">) => Promise<void>;
   updateSymptomLog: (id: string, log: Partial<SymptomLog>) => Promise<void>;
   setWaterGoalMl: (ml: number) => Promise<void>;
@@ -175,6 +195,7 @@ const STORAGE_KEYS = {
   SLEEP_GOAL: "mgi_sleep_goal",
   EXERCISE_GOAL: "mgi_exercise_goal",
   WEIGHT_GOAL: "mgi_weight_goal",
+  MENU: "mgi_menu_items",
   CALORIE_GOAL: "mgi_calorie_goal",
   PROTEIN_GOAL: "mgi_protein_goal",
   CARBS_GOAL: "mgi_carbs_goal",
@@ -222,11 +243,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [carbsGoal, setCarbsGoalState] = useState<number>(250);
   const [fatsGoal, setFatsGoalState] = useState<number>(65);
   const [fiberGoal, setFiberGoalState] = useState<number>(25);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const init = async () => {
-      const [m, w, s, ex, b, wt, ft, med, t, sym] = await Promise.all([
+      const [m, w, s, ex, b, wt, ft, med, t, sym, mn] = await Promise.all([
         loadData<MealEntry>(STORAGE_KEYS.MEALS),
         loadData<WaterEntry>(STORAGE_KEYS.WATER),
         loadData<SleepLog>(STORAGE_KEYS.SLEEP),
@@ -237,6 +259,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loadData<Medication>(STORAGE_KEYS.MEDICATIONS),
         loadData<TriggerEntry>(STORAGE_KEYS.TRIGGERS),
         loadData<SymptomLog>(STORAGE_KEYS.SYMPTOMS),
+        loadData<MenuItem>(STORAGE_KEYS.MENU),
       ]);
       const [wg, sg, eg, wtg, cg, pg, crg, fg, fibg] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.WATER_GOAL),
@@ -259,6 +282,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setMedications(med);
       setTriggers(t);
       setSymptomLogs(sym);
+      setMenuItems(mn);
       if (wg) setWaterGoalMlState(parseInt(wg, 10));
       if (sg) setSleepGoalHoursState(parseFloat(sg));
       if (eg) setExerciseGoalMinutesState(parseInt(eg, 10));
@@ -385,6 +409,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTriggers((p) => { const u = p.filter((t) => t.id !== id); saveData(STORAGE_KEYS.TRIGGERS, u); return u; });
   }, []);
 
+  const addMenuItem = useCallback(async (item: Omit<MenuItem, "id">) => {
+    const n: MenuItem = { ...item, id: generateId() };
+    setMenuItems((p) => { const u = [...p, n]; saveData(STORAGE_KEYS.MENU, u); return u; });
+  }, []);
+
+  const updateMenuItem = useCallback(async (id: string, item: Partial<MenuItem>) => {
+    setMenuItems((p) => { const u = p.map((m) => m.id === id ? { ...m, ...item } : m); saveData(STORAGE_KEYS.MENU, u); return u; });
+  }, []);
+
+  const deleteMenuItem = useCallback(async (id: string) => {
+    setMenuItems((p) => { const u = p.filter((m) => m.id !== id); saveData(STORAGE_KEYS.MENU, u); return u; });
+  }, []);
+
+  const getWeekMenuItems = useCallback(
+    (weekStart: string) => menuItems.filter((m) => m.weekStart === weekStart).sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.time.localeCompare(b.time)),
+    [menuItems]
+  );
+
   const addSymptomLog = useCallback(async (log: Omit<SymptomLog, "id">) => {
     const n: SymptomLog = { ...log, id: generateId() };
     setSymptomLogs((p) => {
@@ -482,7 +524,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         saveWeightEntry, deleteWeightEntry,
         addFoodTrigger, updateFoodTrigger, deleteFoodTrigger,
         addMedication, updateMedication, deleteMedication,
-        addTrigger, deleteTrigger, addSymptomLog, updateSymptomLog,
+        addTrigger, deleteTrigger,
+        menuItems, addMenuItem, updateMenuItem, deleteMenuItem, getWeekMenuItems,
+        addSymptomLog, updateSymptomLog,
         setWaterGoalMl, setSleepGoalHours, setExerciseGoalMinutes, setWeightGoalKg,
         setCalorieGoal, setProteinGoal, setCarbsGoal, setFatsGoal, setFiberGoal,
         getTodayWaterTotal, getTodaySleep, getTodayExercise, getBowelLog, getWeightEntry,

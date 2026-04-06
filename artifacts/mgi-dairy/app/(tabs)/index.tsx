@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, TextInput, Modal, Alert, Platform, useColorScheme,
-  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, FlatList,
+  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -159,6 +159,7 @@ export default function DiaryScreen() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [waterUnit, setWaterUnit] = useState<"ml" | "gal">("ml");
   const [sleepTimeFormat, setSleepTimeFormat] = useState<"12h" | "24h">("12h");
+  const [mealTimeFormat, setMealTimeFormat] = useState<"12h" | "24h">("12h");
   const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg");
 
   const [mealTime, setMealTime] = useState(formatTimeFromDate(new Date()));
@@ -203,6 +204,15 @@ export default function DiaryScreen() {
   const [nutFibGoal, setNutFibGoal] = useState(String(fiberGoal));
 
   const waterPct = Math.min((todayWaterTotal / waterGoalMl) * 100, 100);
+  const to12h = (time: string) => {
+    const [hStr, mStr] = time.split(":");
+    const h = parseInt(hStr, 10);
+    const period = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${h12}:${mStr} ${period}`;
+  };
+  const displayTime = (t: string) => mealTimeFormat === "12h" ? to12h(t) : t;
+
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
   const tabBarHeight = Platform.OS === "web" ? 60 : 50;
   const bottomPad = insets.bottom + tabBarHeight + 16;
@@ -432,8 +442,7 @@ export default function DiaryScreen() {
   const hasAnyNutrition = todayNutrition.calories > 0 || todayNutrition.protein > 0 || todayNutrition.carbs > 0 || todayNutrition.fats > 0 || todayNutrition.fiber > 0;
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
           <Text style={[styles.headerTitle, { color: colors.headerText }]}>Diary</Text>
           <Text style={[styles.headerDate, { color: colors.headerTextSecondary }]}>{formatDisplayDate(today)}</Text>
@@ -455,17 +464,28 @@ export default function DiaryScreen() {
             ) : (
               <View>
                 <View style={[styles.tableHeader, { borderBottomColor: colors.border }]}>
-                  <Text style={[styles.thTime, { color: colors.textSecondary }]}>Time</Text>
-                  <Text style={[styles.thFood, { color: colors.textSecondary }]}>Food</Text>
-                  <Text style={[styles.thNut, { color: colors.textSecondary }]}>Nutrition</Text>
-                  <Text style={[styles.thPhoto, { color: colors.textSecondary }]}>Photos</Text>
+                  <View style={styles.tableHeaderLeft}>
+                    <Text style={[styles.thTime, { color: colors.textSecondary }]}>Time</Text>
+                    <Text style={[styles.thFood, { color: colors.textSecondary }]}>Food & Nutrition</Text>
+                  </View>
+                  <View style={styles.tableHeaderRight}>
+                    <Text style={[styles.thPhoto, { color: colors.textSecondary }]}>Photos</Text>
+                    <View style={[styles.fmtToggle, { borderColor: colors.border, borderWidth: 1 }]}>
+                      <TouchableOpacity style={[styles.fmtBtn, mealTimeFormat === "12h" && { backgroundColor: colors.teal }]} onPress={() => setMealTimeFormat("12h")}>
+                        <Text style={[styles.fmtBtnText, { color: mealTimeFormat === "12h" ? "#fff" : colors.textSecondary }]}>12h</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.fmtBtn, mealTimeFormat === "24h" && { backgroundColor: colors.teal }]} onPress={() => setMealTimeFormat("24h")}>
+                        <Text style={[styles.fmtBtnText, { color: mealTimeFormat === "24h" ? "#fff" : colors.textSecondary }]}>24h</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
                 {todayMeals.map((meal) => {
                   const imgs = getMealImages(meal);
                   const hasNut = (meal.calories ?? 0) > 0 || (meal.protein ?? 0) > 0 || (meal.carbs ?? 0) > 0 || (meal.fats ?? 0) > 0 || (meal.fiber ?? 0) > 0;
                   return (
                     <View key={meal.id} style={[styles.mealRow, { borderTopColor: colors.borderLight }]}>
-                      <Text style={[styles.tdTime, { color: colors.text }]}>{meal.time}</Text>
+                      <Text style={[styles.tdTime, { color: colors.text }]}>{displayTime(meal.time)}</Text>
                       <View style={styles.tdFoodCol}>
                         <Text style={[styles.foodName, { color: colors.text }]} numberOfLines={2}>{meal.foodDetails}</Text>
                         {hasNut && (
@@ -477,9 +497,6 @@ export default function DiaryScreen() {
                             {(meal.fiber ?? 0) > 0 && <NutritionBadge label="Fb" value={meal.fiber!} unit="g" color="#8B5CF6" />}
                           </View>
                         )}
-                      </View>
-                      <View style={styles.tdNutCol}>
-                        {!hasNut && <Text style={[styles.nutEmpty, { color: colors.placeholder }]}>—</Text>}
                       </View>
                       <View style={styles.tdPhotoCol}>
                         {imgs.length > 0 ? (
@@ -698,9 +715,20 @@ export default function DiaryScreen() {
                   <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
                   <Text style={[shStyles.title, { color: colors.text }]}>{editingMealId ? "Edit Meal" : "Add Food"}</Text>
 
-                  <View style={[styles.timeRow, { backgroundColor: colors.inputBg, borderRadius: 10 }]}>
-                    <Feather name="clock" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
-                    <TextInput style={[styles.timeInput, { color: colors.text }]} value={mealTime} onChangeText={setMealTime} placeholder="HH:MM" placeholderTextColor={colors.placeholder} />
+                  <View style={styles.modalTimeRow}>
+                    <View style={[styles.toggleGroup, { borderColor: colors.border, borderWidth: 1, marginRight: 10 }]}>
+                      <TouchableOpacity style={[styles.toggleBtn, mealTimeFormat === "12h" && { backgroundColor: colors.teal }]} onPress={() => setMealTimeFormat("12h")}>
+                        <Text style={[styles.toggleBtnText, { color: mealTimeFormat === "12h" ? "#fff" : colors.textSecondary }]}>12h</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.toggleBtn, mealTimeFormat === "24h" && { backgroundColor: colors.teal }]} onPress={() => setMealTimeFormat("24h")}>
+                        <Text style={[styles.toggleBtnText, { color: mealTimeFormat === "24h" ? "#fff" : colors.textSecondary }]}>24h</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {mealTimeFormat === "24h" ? (
+                      <Simple24hInput value={mealTime} onChange={setMealTime} colors={colors} />
+                    ) : (
+                      <SimpleTimeInput value={mealTime} onChange={setMealTime} colors={colors} />
+                    )}
                   </View>
 
                   <View style={[styles.foodInputRow, { backgroundColor: colors.inputBg, borderRadius: 10, marginTop: 10 }]}>
@@ -1041,7 +1069,6 @@ export default function DiaryScreen() {
           </View>
         </Modal>
       </View>
-    </TouchableWithoutFeedback>
   );
 }
 
@@ -1111,13 +1138,19 @@ const styles = StyleSheet.create({
   addBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   emptyState: { alignItems: "center", paddingVertical: 20, gap: 8 },
   emptyText: { fontSize: 14 },
-  tableHeader: { flexDirection: "row", paddingBottom: 8, borderBottomWidth: 1, alignItems: "center" },
-  thTime: { width: 46, fontSize: 11, fontWeight: "600" as const },
+  tableHeader: { flexDirection: "row", paddingBottom: 8, borderBottomWidth: 1, alignItems: "center", justifyContent: "space-between" },
+  tableHeaderLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  tableHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  thTime: { width: 52, fontSize: 11, fontWeight: "600" as const },
   thFood: { flex: 1, fontSize: 11, fontWeight: "600" as const },
   thNut: { width: 0 },
-  thPhoto: { width: 46, fontSize: 11, fontWeight: "600" as const, textAlign: "center" },
+  thPhoto: { fontSize: 11, fontWeight: "600" as const },
+  fmtToggle: { flexDirection: "row", borderRadius: 6, overflow: "hidden" },
+  fmtBtn: { paddingHorizontal: 6, paddingVertical: 3 },
+  fmtBtnText: { fontSize: 10, fontWeight: "600" as const },
+  modalTimeRow: { flexDirection: "row", alignItems: "center", marginBottom: 0 },
   mealRow: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 10, borderTopWidth: 0.5, gap: 6 },
-  tdTime: { width: 46, fontSize: 12, paddingTop: 2 },
+  tdTime: { width: 60, fontSize: 11, paddingTop: 2 },
   tdFoodCol: { flex: 1 },
   foodName: { fontSize: 13 },
   nutTagRow: { flexDirection: "row", flexWrap: "wrap", gap: 3, marginTop: 4 },
