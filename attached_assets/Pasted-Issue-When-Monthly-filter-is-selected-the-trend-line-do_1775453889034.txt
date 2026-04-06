@@ -1,0 +1,65 @@
+Issue:
+•	When “Monthly” filter is selected, the trend line does NOT correctly display values for all dates. Due to limited horizontal space, the graph compresses data → resulting in incorrect/misaligned trend lines.
+Required Fix:
+•	Full Date Coverage: Ensure ALL days of the selected month (1–30/31) are plotted on the X-axis, No skipping or collapsing of dates
+2.	Expand X-Axis (CRITICAL):
+•	The chart must support horizontal scrolling
+•	Increase chart width dynamically beyond screen width
+•	Wrap chart in a horizontal ScrollView
+3.	Layout Requirements:
+•	The chart should:
+o	Visually fit inside the “Wellness Trend” card
+o	Maintain proper spacing between data points
+•	Prevent overlapping labels or compressed points
+4.	X-Axis Labels:
+•	Show all dates (1, 2, 3, ..., 30/31)
+•	Ensure readability (rotate labels slightly if needed)
+
+2.	HISTORICAL DATA EDITING (MAJOR FEATURE)
+Current Limitation:
+•	Users can only log: Bowel Movement Color , BM Count
+•	Cannot edit/add past data like meals, water, sleep, weight for selected date from the bottom Log card,
+Required Enhancement:
+1.	Enable Full Past-Day Editing:
+•	When user select ANY past date in Calendar and open any respective entries(meals, water, sleep, weight) user should be able to edit them exactly like BM entry 
+•	Add the editable options to the following entries
+•	Weight: Manual entry (kg/lbs)
+•	Sleep: Duration (hrs)
+•	Water Intake: quantity in (ml/gal)
+•	Meals :
+display the entire food dairy when the entry card is selected 
+o	Add new entries
+o	Edit existing entries
+o	Delete entries
+o	Include:
+	Time
+	Food
+	Nutrition (if already implemented)
+	Photos (multi-image support)
+3.	UX Requirements:
+•	Pre-fill existing data when editing past days
+•	Allow saving updates without overwriting unrelated fields
+•	Smooth navigation back to Calendar after saving
+4.	Data Persistence:
+•	Ensure:
+o	Data consistency across Diary and Calendar views
+o	Updates reflect immediately in:
+	Wellness Trend
+
+3.	PERFORMANCE & UX NOTES
+•	Ensure no lag when loading past entries
+•	Optimize data fetching (lazy load if needed)
+•	Maintain smooth transitions between:
+o	Calendar → Daily Log → Back
+
+EXPECTED OUTPUT
+•	Fixed Monthly Wellness Trend chart (scrollable, accurate)
+•	Fully functional past-day editing system
+•	Clean, reusable components:
+o	Trend chart wrapper
+o	Daily log editor modal/screen
+
+IMPORTANT NOTES
+•	Do NOT break existing Calendar functionality
+•	Maintain consistent UI design across tabs
+
