@@ -77,13 +77,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Feather name="package" size={22} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="mgi"
-        options={{
-          title: "Academy",
-          tabBarIcon: ({ color }) => <Feather name="globe" size={22} color={color} />,
-        }}
-      />
     </Tabs>
   );
 }
