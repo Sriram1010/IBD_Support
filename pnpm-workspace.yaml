@@ -33,6 +33,10 @@ minimumReleaseAgeExclude:
   # this setting guards against does not apply to our own packages.
   - '@replit/*'
   - stripe-replit-sync
+  # Security vulnerability fix: tar >=7.5.16 patches GHSA-vmf3-w455-68vh.
+  # The latest patched release (7.5.19) is fresher than the 1-day window, so
+  # it is excluded here to allow installation. Remove once 24 hours have passed.
+  - tar
 
 packages:
   - artifacts/*
