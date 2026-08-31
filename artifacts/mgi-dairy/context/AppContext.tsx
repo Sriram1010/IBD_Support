@@ -61,7 +61,7 @@ export interface WeightEntry {
   notes?: string;
 }
 
-export type FoodCategory = "trigger" | "safe" | "reintroduce" | "flareup";
+export type FoodCategory = string;
 
 export interface FoodTrigger {
   id: string;

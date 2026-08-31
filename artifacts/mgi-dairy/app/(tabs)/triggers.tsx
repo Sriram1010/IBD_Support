@@ -18,7 +18,16 @@ import { useDateString, formatTimeFromDate } from "@/hooks/useDateString";
 import { parse24h } from "@/components/WheelPicker";
 
 const CATEGORY_ORDER_KEY = "mgi_food_category_order";
+const CUSTOM_CATEGORIES_KEY = "mgi_food_custom_categories";
 const DEFAULT_ORDER: FoodCategory[] = ["trigger", "safe", "reintroduce", "flareup"];
+const CUSTOM_CATEGORY_COLORS = ["#1B8A7B", "#7C5CBF", "#C4881A", "#2563EB", "#DB2777"];
+
+interface FoodCategoryCard {
+  id: FoodCategory;
+  label: string;
+  color: string;
+  icon: string;
+}
 
 function fmtShortDate(d: string): string {
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -32,7 +41,7 @@ function fmtTime12(t: string): string {
   return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
 }
 
-const CATEGORY_META: Record<FoodCategory, { label: string; color: string; icon: string; bg: string }> = {
+const CATEGORY_META: Record<string, { label: string; color: string; icon: string; bg: string }> = {
   trigger: { label: "Trigger Foods", color: "#EF4444", icon: "alert-triangle", bg: "#FEF2F2" },
   flareup: { label: "Flare-up Foods", color: "#DC2626", icon: "zap", bg: "#FFF1F1" },
   safe: { label: "Safe Foods", color: "#10B981", icon: "check-circle", bg: "#ECFDF5" },
@@ -54,16 +63,49 @@ export default function FoodScreen() {
   const [notes, setNotes] = useState("");
   const [category, setCategory] = useState<FoodCategory>("trigger");
   const [categoryOrder, setCategoryOrder] = useState<FoodCategory[]>(DEFAULT_ORDER);
+  const [customCategories, setCustomCategories] = useState<FoodCategoryCard[]>([]);
+  const [showCategorySheet, setShowCategorySheet] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(CATEGORY_ORDER_KEY).then((v) => {
-      if (v) {
-        try {
-          const parsed = JSON.parse(v) as FoodCategory[];
-          if (parsed.length === 4) setCategoryOrder(parsed);
-        } catch {}
-      }
+    Promise.all([
+      AsyncStorage.getItem(CATEGORY_ORDER_KEY),
+      AsyncStorage.getItem(CUSTOM_CATEGORIES_KEY),
+    ]).then(([orderValue, categoriesValue]) => {
+      let storedCustomCategories: FoodCategoryCard[] = [];
+      let storedOrder: FoodCategory[] = [];
+
+      try {
+        const parsed = categoriesValue ? JSON.parse(categoriesValue) : [];
+        if (Array.isArray(parsed)) {
+          storedCustomCategories = parsed.filter(
+            (card): card is FoodCategoryCard =>
+              typeof card?.id === "string" &&
+              typeof card?.label === "string" &&
+              typeof card?.color === "string" &&
+              typeof card?.icon === "string",
+          );
+        }
+      } catch {}
+
+      try {
+        const parsed = orderValue ? JSON.parse(orderValue) : [];
+        if (Array.isArray(parsed)) {
+          storedOrder = parsed.filter((id): id is FoodCategory => typeof id === "string");
+        }
+      } catch {}
+
+      const customIds = storedCustomCategories.map((card) => card.id);
+      const validIds = new Set<FoodCategory>([...DEFAULT_ORDER, ...customIds]);
+      const normalizedOrder = [
+        ...storedOrder.filter((id) => validIds.has(id)),
+        ...DEFAULT_ORDER.filter((id) => !storedOrder.includes(id)),
+        ...customIds.filter((id) => !storedOrder.includes(id)),
+      ];
+      setCustomCategories(storedCustomCategories);
+      setCategoryOrder(normalizedOrder);
     });
   }, []);
 
@@ -83,7 +125,63 @@ export default function FoodScreen() {
 
   const byCategory = (cat: FoodCategory) => foodTriggers.filter((t) => (t.category ?? "trigger") === cat);
 
-  const openAdd = (cat: FoodCategory = "trigger") => {
+  const getCategoryMeta = (cat: FoodCategory) =>
+    CATEGORY_META[cat] ??
+    customCategories.find((card) => card.id === cat) ?? {
+      label: cat,
+      color: colors.tint,
+      icon: "tag",
+      bg: colors.sectionBg,
+    };
+
+  const openAddCategory = () => {
+    setNewCategoryName("");
+    setShowCategorySheet(true);
+  };
+
+  const handleAddCategory = async () => {
+    const trimmedName = newCategoryName.trim();
+    if (!trimmedName) {
+      Alert.alert("Name required", "Please enter a name for the new food card.");
+      return;
+    }
+
+    const existingNames = [
+      ...DEFAULT_ORDER.map((id) => CATEGORY_META[id].label),
+      ...customCategories.map((card) => card.label),
+    ];
+    if (existingNames.some((label) => label.toLowerCase() === trimmedName.toLowerCase())) {
+      Alert.alert("Card already exists", "Choose a different name for this food card.");
+      return;
+    }
+
+    setIsAddingCategory(true);
+    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const newCard: FoodCategoryCard = {
+      id,
+      label: trimmedName,
+      color: CUSTOM_CATEGORY_COLORS[customCategories.length % CUSTOM_CATEGORY_COLORS.length],
+      icon: "tag",
+    };
+    const nextCustomCategories = [...customCategories, newCard];
+    const nextOrder = [...categoryOrder, id];
+    try {
+      await Promise.all([
+        AsyncStorage.setItem(CUSTOM_CATEGORIES_KEY, JSON.stringify(nextCustomCategories)),
+        saveOrder(nextOrder),
+      ]);
+      setCustomCategories(nextCustomCategories);
+      setCategoryOrder(nextOrder);
+      setShowCategorySheet(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Could not add card", "Please try again.");
+    } finally {
+      setIsAddingCategory(false);
+    }
+  };
+
+  const openAdd = (cat: FoodCategory) => {
     setEditId(null);
     setFood("");
     setNotes("");
@@ -119,10 +217,9 @@ export default function FoodScreen() {
   };
 
   const handleMove = (item: FoodTrigger) => {
-    const all: FoodCategory[] = ["trigger", "flareup", "safe", "reintroduce"];
-    const options = all.filter((c) => c !== (item.category ?? "trigger"));
+    const options = categoryOrder.filter((c) => c !== (item.category ?? "trigger"));
     Alert.alert("Move to…", undefined, [
-      ...options.map((c) => ({ text: CATEGORY_META[c].label, onPress: () => updateFoodTrigger(item.id, { category: c, date: today, time: formatTimeFromDate(new Date()) }) })),
+      ...options.map((c) => ({ text: getCategoryMeta(c).label, onPress: () => updateFoodTrigger(item.id, { category: c, date: today, time: formatTimeFromDate(new Date()) }) })),
       { text: "Cancel", style: "cancel" },
     ]);
   };
@@ -147,7 +244,13 @@ export default function FoodScreen() {
               <Feather name={isReordering ? "check" : "menu"} size={16} color="#fff" />
               <Text style={styles.headerReorderText}>{isReordering ? "Done" : "Reorder"}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={() => openAdd("trigger")}>
+            <TouchableOpacity
+              testID="add-food-card-button"
+              accessibilityRole="button"
+              accessibilityLabel="Add a new food card"
+              style={[styles.headerAddBtn, { backgroundColor: colors.gold }]}
+              onPress={openAddCategory}
+            >
               <Feather name="plus" size={18} color="#fff" />
             </TouchableOpacity>
             <ProfileSettingsButton color={colors.headerText} />
@@ -158,7 +261,7 @@ export default function FoodScreen() {
         <View style={[styles.banner, { backgroundColor: colors.purple }]}>
           <Feather name="layers" size={15} color="#fff" />
           <Text style={styles.bannerText}>
-            {byCategory("trigger").length} triggers · {byCategory("flareup").length} flare-ups · {byCategory("safe").length} safe · {byCategory("reintroduce").length} reintroduce
+            {foodTriggers.length} foods · {categoryOrder.length} categories
           </Text>
         </View>
 
@@ -174,7 +277,7 @@ export default function FoodScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {categoryOrder.map((cat, orderIdx) => {
-            const meta = CATEGORY_META[cat];
+            const meta = getCategoryMeta(cat);
             const items = byCategory(cat);
             const isFirst = orderIdx === 0;
             const isLast = orderIdx === categoryOrder.length - 1;
@@ -269,6 +372,54 @@ export default function FoodScreen() {
           })}
         </AutoHideScrollView>
 
+        {/* ADD CATEGORY SHEET */}
+        <Modal visible={showCategorySheet} animationType="slide" transparent>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={styles.overlay}>
+              <TouchableWithoutFeedback onPress={() => setShowCategorySheet(false)}>
+                <View style={StyleSheet.absoluteFill} />
+              </TouchableWithoutFeedback>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={[styles.bottomSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
+                  <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+                  <Text style={[styles.sheetTitle, { color: colors.text }]}>New food card</Text>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Card name</Text>
+                  <TextInput
+                    testID="new-food-card-name-input"
+                    style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
+                    value={newCategoryName}
+                    onChangeText={setNewCategoryName}
+                    placeholder="e.g. Foods to test"
+                    placeholderTextColor={colors.placeholder}
+                    maxLength={30}
+                    autoFocus
+                  />
+                  <Text style={[styles.cardHelperText, { color: colors.textSecondary }]}>
+                    The new card will include its own + button for adding foods.
+                  </Text>
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]}
+                      onPress={() => setShowCategorySheet(false)}
+                      disabled={isAddingCategory}
+                    >
+                      <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      testID="save-food-card-button"
+                      style={[styles.saveBtn, { backgroundColor: colors.teal, opacity: isAddingCategory ? 0.65 : 1 }]}
+                      onPress={handleAddCategory}
+                      disabled={isAddingCategory}
+                    >
+                      <Text style={styles.saveText}>{isAddingCategory ? "Adding…" : "Add card"}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
         {/* ADD/EDIT SHEET */}
         <Modal visible={showSheet} animationType="slide" transparent>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -283,8 +434,8 @@ export default function FoodScreen() {
 
                   <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Category</Text>
                   <View style={styles.categoryRow}>
-                    {(["trigger", "flareup", "safe", "reintroduce"] as FoodCategory[]).map((c) => {
-                      const m = CATEGORY_META[c];
+                    {categoryOrder.map((c) => {
+                      const m = getCategoryMeta(c);
                       return (
                         <TouchableOpacity
                           key={c}
@@ -331,7 +482,7 @@ export default function FoodScreen() {
                     <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSheet(false)}>
                       <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: CATEGORY_META[category].color }]} onPress={handleSave}>
+                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: getCategoryMeta(category).color }]} onPress={handleSave}>
                       <Text style={styles.saveText}>Save</Text>
                     </TouchableOpacity>
                   </View>
@@ -390,6 +541,7 @@ const styles = StyleSheet.create({
   categoryChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   categoryChipText: { fontSize: 12, fontWeight: "600" as const },
   input: { height: 48, borderRadius: 10, paddingHorizontal: 14, fontSize: 15 },
+  cardHelperText: { fontSize: 12, lineHeight: 18, marginTop: 10 },
   notesInputRow: { flexDirection: "row", alignItems: "flex-start", borderRadius: 10, padding: 12, minHeight: 90 },
   notesInput: { flex: 1, fontSize: 14, lineHeight: 22, textAlignVertical: "top" },
   micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginLeft: 8 },
