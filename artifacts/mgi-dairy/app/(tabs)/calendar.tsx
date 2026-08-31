@@ -442,7 +442,7 @@ export default function CalendarScreen() {
           <WeeklyView todayStr={todayStr} selectedDate={selectedDate} bowelMap={bowelMap} colors={colors} onDayTap={handleDayTap} />
         )}
         {viewMode === "yearly" && (
-          <YearlyView year={viewYear} bowelMap={bowelMap} todayStr={todayStr} selectedDate={selectedDate} colors={colors} onYearChange={(y) => setViewYear(y)} onDayTap={handleDayTap} />
+          <YearlyView year={viewYear} bowelMap={bowelMap} todayStr={todayStr} selectedDate={selectedDate} colors={colors} onYearChange={(y: number) => setViewYear(y)} onDayTap={handleDayTap} />
         )}
 
         <TouchableOpacity style={[styles.logEntryBtn, { backgroundColor: colors.purple }]} onPress={() => openDaySheet(selectedDate)}>

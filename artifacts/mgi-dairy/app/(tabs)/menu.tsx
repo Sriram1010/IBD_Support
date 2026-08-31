@@ -123,7 +123,7 @@ export default function MenuScreen() {
       dayOfWeek: selectedDay,
       time: formTime,
       recipe: formRecipe.trim(),
-      notes: formNotes.trim() || undefined,
+      notes: formNotes.trim() || "",
       links,
     };
     if (editingId) await updateMenuItem(editingId, data);

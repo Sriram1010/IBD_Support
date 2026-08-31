@@ -116,6 +116,14 @@ export interface MenuItem {
   links: MenuLink[];
 }
 
+export interface UserProfile {
+  name: string;
+  email: string;
+  age: string;
+  height: string;
+  weight: string;
+}
+
 interface AppContextType {
   meals: MealEntry[];
   waterEntries: WaterEntry[];
@@ -127,6 +135,7 @@ interface AppContextType {
   medications: Medication[];
   triggers: TriggerEntry[];
   symptomLogs: SymptomLog[];
+  profile: UserProfile;
   waterGoalMl: number;
   sleepGoalHours: number;
   exerciseGoalMinutes: number;
@@ -164,6 +173,7 @@ interface AppContextType {
   getWeekMenuItems: (weekStart: string) => MenuItem[];
   addSymptomLog: (log: Omit<SymptomLog, "id">) => Promise<void>;
   updateSymptomLog: (id: string, log: Partial<SymptomLog>) => Promise<void>;
+  saveProfile: (profile: UserProfile) => Promise<void>;
   setWaterGoalMl: (ml: number) => Promise<void>;
   setSleepGoalHours: (h: number) => Promise<void>;
   setExerciseGoalMinutes: (m: number) => Promise<void>;
@@ -202,6 +212,15 @@ const STORAGE_KEYS = {
   CARBS_GOAL: "mgi_carbs_goal",
   FATS_GOAL: "mgi_fats_goal",
   FIBER_GOAL: "mgi_fiber_goal",
+  PROFILE: "mgi_user_profile",
+};
+
+const DEFAULT_PROFILE: UserProfile = {
+  name: "",
+  email: "",
+  age: "",
+  height: "",
+  weight: "",
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -224,6 +243,16 @@ async function saveData<T>(key: string, data: T[]): Promise<void> {
   await AsyncStorage.setItem(key, JSON.stringify(data));
 }
 
+async function loadObject<T>(key: string, fallback: T): Promise<T> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return fallback;
+    return { ...fallback, ...JSON.parse(raw) } as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [waterEntries, setWaterEntries] = useState<WaterEntry[]>([]);
@@ -235,6 +264,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [triggers, setTriggers] = useState<TriggerEntry[]>([]);
   const [symptomLogs, setSymptomLogs] = useState<SymptomLog[]>([]);
+  const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [waterGoalMl, setWaterGoalMlState] = useState<number>(3785);
   const [sleepGoalHours, setSleepGoalHoursState] = useState<number>(8);
   const [exerciseGoalMinutes, setExerciseGoalMinutesState] = useState<number>(30);
@@ -249,7 +279,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const init = async () => {
-      const [m, w, s, ex, b, wt, ft, med, t, sym, mn] = await Promise.all([
+      const [m, w, s, ex, b, wt, ft, med, t, sym, mn, savedProfile] = await Promise.all([
         loadData<MealEntry>(STORAGE_KEYS.MEALS),
         loadData<WaterEntry>(STORAGE_KEYS.WATER),
         loadData<SleepLog>(STORAGE_KEYS.SLEEP),
@@ -261,6 +291,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loadData<TriggerEntry>(STORAGE_KEYS.TRIGGERS),
         loadData<SymptomLog>(STORAGE_KEYS.SYMPTOMS),
         loadData<MenuItem>(STORAGE_KEYS.MENU),
+        loadObject<UserProfile>(STORAGE_KEYS.PROFILE, DEFAULT_PROFILE),
       ]);
       const [wg, sg, eg, wtg, cg, pg, crg, fg, fibg] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.WATER_GOAL),
@@ -284,6 +315,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setTriggers(t);
       setSymptomLogs(sym);
       setMenuItems(mn);
+      setProfile(savedProfile);
       if (wg) setWaterGoalMlState(parseInt(wg, 10));
       if (sg) setSleepGoalHoursState(parseFloat(sg));
       if (eg) setExerciseGoalMinutesState(parseInt(eg, 10));
@@ -441,6 +473,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSymptomLogs((p) => { const u = p.map((s) => s.id === id ? { ...s, ...log } : s); saveData(STORAGE_KEYS.SYMPTOMS, u); return u; });
   }, []);
 
+  const saveProfile = useCallback(async (nextProfile: UserProfile) => {
+    setProfile(nextProfile);
+    await AsyncStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(nextProfile));
+  }, []);
+
   const setWaterGoalMl = useCallback(async (ml: number) => {
     setWaterGoalMlState(ml);
     await AsyncStorage.setItem(STORAGE_KEYS.WATER_GOAL, String(ml));
@@ -516,6 +553,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       value={{
         meals, waterEntries, sleepLogs, exerciseLogs, bowelLogs, weightLogs,
         foodTriggers, medications, triggers, symptomLogs,
+        profile,
         waterGoalMl, sleepGoalHours, exerciseGoalMinutes, weightGoalKg,
         calorieGoal, proteinGoal, carbsGoal, fatsGoal, fiberGoal,
         addMeal, updateMeal, deleteMeal,
@@ -528,6 +566,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addTrigger, deleteTrigger,
         menuItems, addMenuItem, updateMenuItem, deleteMenuItem, getWeekMenuItems,
         addSymptomLog, updateSymptomLog,
+        saveProfile,
         setWaterGoalMl, setSleepGoalHours, setExerciseGoalMinutes, setWeightGoalKg,
         setCalorieGoal, setProteinGoal, setCarbsGoal, setFatsGoal, setFiberGoal,
         getTodayWaterTotal, getTodaySleep, getTodayExercise, getBowelLog, getWeightEntry,

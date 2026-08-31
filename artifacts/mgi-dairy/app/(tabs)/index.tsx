@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
+import { useRouter } from "expo-router";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, TextInput, Modal, Alert, Platform, useColorScheme,
@@ -110,6 +111,7 @@ export default function DiaryScreen() {
   const colorScheme = useColorScheme();
   const colors = colorScheme === "dark" ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const today = useDateString();
 
   const {
@@ -461,8 +463,21 @@ export default function DiaryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
-          <Text style={[styles.headerTitle, { color: colors.headerText }]}>Diary</Text>
-          <Text style={[styles.headerDate, { color: colors.headerTextSecondary }]}>{formatDisplayDate(today)}</Text>
+          <View style={styles.headerTopRow}>
+            <View>
+              <Text style={[styles.headerTitle, { color: colors.headerText }]}>Diary</Text>
+              <Text style={[styles.headerDate, { color: colors.headerTextSecondary }]}>{formatDisplayDate(today)}</Text>
+            </View>
+            <TouchableOpacity
+              testID="profile-settings-button"
+              accessibilityRole="button"
+              accessibilityLabel="Open profile settings"
+              style={styles.headerIconBtn}
+              onPress={() => router.push("/profile")}
+            >
+              <Feather name="settings" size={22} color={colors.headerText} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -1135,6 +1150,8 @@ function ActivityInput({ icon, label, value, onChange, colors }: { icon: string;
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 16 },
+  headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerIconBtn: { width: 42, height: 42, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 28, fontWeight: "700" as const },
   headerDate: { fontSize: 13, marginTop: 2 },
   card: { borderRadius: 16, padding: 16, marginBottom: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
