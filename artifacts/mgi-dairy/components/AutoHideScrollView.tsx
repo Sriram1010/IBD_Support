@@ -18,7 +18,7 @@ type AutoHideScrollViewProps = ScrollViewProps & {
   fadeDelay?: number;
 };
 
-const MIN_THUMB_HEIGHT = 34;
+const MIN_THUMB_HEIGHT = 38;
 const TRACK_INSET = 4;
 
 export function AutoHideScrollView({
@@ -185,12 +185,12 @@ const styles = StyleSheet.create({
   track: {
     position: "absolute",
     top: TRACK_INSET,
-    right: 3,
+    right: 2,
     bottom: TRACK_INSET,
-    width: 5,
+    width: 7,
   },
   thumb: {
-    width: 5,
-    borderRadius: 3,
+    width: 7,
+    borderRadius: 4,
   },
 });
