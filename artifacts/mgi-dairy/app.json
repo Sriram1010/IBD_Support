@@ -1,25 +1,25 @@
 {
   "expo": {
-    "name": "MGI Dairy",
+    "name": "Happy Colon",
     "slug": "mgi-dairy",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/happy-colon-logo.png",
     "scheme": "mgi-dairy",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/happy-colon-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "MGI Dairy uses the camera to photograph your meals.",
-        "NSMicrophoneUsageDescription": "MGI Dairy uses the microphone so you can dictate food and water intake by voice.",
-        "NSPhotoLibraryUsageDescription": "MGI Dairy reads your photo library so you can attach meal photos.",
-        "NSPhotoLibraryAddUsageDescription": "MGI Dairy saves meal photos to your photo library."
+        "NSCameraUsageDescription": "Happy Colon uses the camera to photograph your meals.",
+        "NSMicrophoneUsageDescription": "Happy Colon uses the microphone so you can dictate food and water intake by voice.",
+        "NSPhotoLibraryUsageDescription": "Happy Colon reads your photo library so you can attach meal photos.",
+        "NSPhotoLibraryAddUsageDescription": "Happy Colon saves meal photos to your photo library."
       }
     },
     "android": {
@@ -32,7 +32,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/happy-colon-logo.png"
     },
     "plugins": [
       [
@@ -46,9 +46,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "MGI Dairy uses your photo library to attach meal photos.",
-          "cameraPermission": "MGI Dairy uses the camera to photograph your meals.",
-          "microphonePermission": "MGI Dairy uses the microphone for voice input."
+          "photosPermission": "Happy Colon uses your photo library to attach meal photos.",
+          "cameraPermission": "Happy Colon uses the camera to photograph your meals.",
+          "microphonePermission": "Happy Colon uses the microphone for voice input."
         }
       ]
     ],
