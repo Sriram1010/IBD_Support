@@ -9,12 +9,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  ScrollView,
   useColorScheme,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp, UserProfile } from "@/context/AppContext";
 import Colors from "@/constants/colors";
 
@@ -116,9 +116,8 @@ function ProfileForm({ initialProfile }: { initialProfile: UserProfile }) {
         <View style={styles.headerSpacer} />
       </View>
 
-      <KeyboardAwareScrollViewCompat
+      <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 28 }}
-        bottomOffset={24}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -192,7 +191,7 @@ function ProfileForm({ initialProfile }: { initialProfile: UserProfile }) {
         >
           {isSaving ? <ActivityIndicator color={colors.headerText} /> : <Text style={styles.saveButtonText}>Save changes</Text>}
         </TouchableOpacity>
-      </KeyboardAwareScrollViewCompat>
+      </ScrollView>
     </View>
   );
 }
