@@ -8,6 +8,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AutoHideScrollView } from "@/components/AutoHideScrollView";
+import { ProfileSettingsButton } from "@/components/ProfileSettingsButton";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
@@ -97,9 +98,12 @@ export default function MedsScreen() {
             <Text style={[styles.headerTitle, { color: colors.headerText }]}>Medications</Text>
             <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Daily meds & supplements</Text>
           </View>
-          <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
-            <Feather name="plus" size={18} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <ProfileSettingsButton color={colors.headerText} />
+            <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
+              <Feather name="plus" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={[styles.banner, { backgroundColor: colors.teal }]}>
@@ -243,6 +247,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 14, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
   headerTitle: { fontSize: 28, fontWeight: "700" as const },
   headerSub: { fontSize: 13, marginTop: 2 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   headerAddBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   banner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
   bannerText: { color: "#fff", fontSize: 13, fontWeight: "600" as const },

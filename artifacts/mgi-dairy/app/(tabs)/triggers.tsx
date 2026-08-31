@@ -9,6 +9,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AutoHideScrollView } from "@/components/AutoHideScrollView";
+import { ProfileSettingsButton } from "@/components/ProfileSettingsButton";
 import { useRouter } from "expo-router";
 
 import Colors from "@/constants/colors";
@@ -149,6 +150,7 @@ export default function FoodScreen() {
             <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={() => openAdd("trigger")}>
               <Feather name="plus" size={18} color="#fff" />
             </TouchableOpacity>
+            <ProfileSettingsButton color={colors.headerText} />
           </View>
         </View>
 

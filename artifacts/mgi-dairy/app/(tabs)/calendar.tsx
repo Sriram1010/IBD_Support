@@ -15,6 +15,7 @@ import { useApp, BowelLog, MealEntry } from "@/context/AppContext";
 import { calcSleepHours, calcSleepHoursNum } from "@/hooks/useDateString";
 import { SimpleTimeInput, parse24h, to24h } from "@/components/WheelPicker";
 import { AutoHideScrollView } from "@/components/AutoHideScrollView";
+import { ProfileSettingsButton } from "@/components/ProfileSettingsButton";
 
 function CalSimple24hInput({ value, onChange, colors }: { value: string; onChange: (v: string) => void; colors: any }) {
   const [text, setText] = React.useState(value || "07:00");
@@ -423,6 +424,7 @@ export default function CalendarScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
         <Text style={[styles.headerTitle, { color: colors.headerText }]}>Calendar</Text>
+        <ProfileSettingsButton color={colors.headerText} />
       </View>
 
       <View style={[styles.viewTabsRow, { backgroundColor: colors.headerBg }]}>
@@ -1061,7 +1063,7 @@ function YearlyView({ year, bowelMap, todayStr, selectedDate, colors, onYearChan
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 12 },
+  header: { paddingHorizontal: 20, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { fontSize: 28, fontWeight: "700" as const },
   viewTabsRow: { paddingHorizontal: 16, paddingBottom: 12 },
   viewTabs: { flexDirection: "row", borderRadius: 12, padding: 4 },

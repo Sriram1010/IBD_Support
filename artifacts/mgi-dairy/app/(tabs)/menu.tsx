@@ -11,6 +11,7 @@ import { useApp as useAppContext } from "@/context/AppContext";
 import Colors from "@/constants/colors";
 import { SimpleTimeInput } from "@/components/WheelPicker";
 import { AutoHideScrollView } from "@/components/AutoHideScrollView";
+import { ProfileSettingsButton } from "@/components/ProfileSettingsButton";
 
 function MenuSimple24hInput({ value, onChange, colors }: { value: string; onChange: (v: string) => void; colors: any }) {
   const [text, setText] = React.useState(value || "08:00");
@@ -156,8 +157,11 @@ export default function MenuScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
-        <Text style={[styles.headerTitle, { color: colors.headerText }]}>Weekly Menu</Text>
-        <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>{DAY_FULL[selectedDay]}</Text>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.headerText }]}>Weekly Menu</Text>
+          <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>{DAY_FULL[selectedDay]}</Text>
+        </View>
+        <ProfileSettingsButton color={colors.headerText} />
       </View>
 
       <View style={[styles.weekNav, { backgroundColor: colors.card, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
@@ -324,7 +328,7 @@ export default function MenuScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16 },
+  header: { paddingHorizontal: 20, paddingBottom: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { fontSize: 28, fontWeight: "700" as const },
   headerSub: { fontSize: 14, marginTop: 2 },
   weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 8 },
