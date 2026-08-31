@@ -224,6 +224,49 @@ export default function FoodScreen() {
     ]);
   };
 
+  const handleDeleteCategory = (cat: FoodCategory) => {
+    if (categoryOrder.length <= 1) {
+      Alert.alert("Keep one food card", "At least one food card must remain.");
+      return;
+    }
+
+    const meta = getCategoryMeta(cat);
+    const items = byCategory(cat);
+    const fallbackCategory =
+      categoryOrder.find((id) => id !== cat && id === "trigger") ??
+      categoryOrder.find((id) => id !== cat) as FoodCategory;
+    const fallbackMeta = getCategoryMeta(fallbackCategory);
+    const itemMessage = items.length
+      ? `Foods in this card will be moved to ${fallbackMeta.label}.`
+      : "This card has no foods in it.";
+
+    Alert.alert(`Delete ${meta.label}?`, itemMessage, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete card",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await Promise.all(
+              items.map((item) => updateFoodTrigger(item.id, { category: fallbackCategory })),
+            );
+            const nextOrder = categoryOrder.filter((id) => id !== cat);
+            const nextCustomCategories = customCategories.filter((card) => card.id !== cat);
+            await Promise.all([
+              saveOrder(nextOrder),
+              AsyncStorage.setItem(CUSTOM_CATEGORIES_KEY, JSON.stringify(nextCustomCategories)),
+            ]);
+            setCategoryOrder(nextOrder);
+            setCustomCategories(nextCustomCategories);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } catch {
+            Alert.alert("Could not delete card", "Please try again.");
+          }
+        },
+      },
+    ]);
+  };
+
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
   const tabBarHeight = Platform.OS === "web" ? 60 : 50;
   const bottomPad = insets.bottom + tabBarHeight + 16;
@@ -320,11 +363,28 @@ export default function FoodScreen() {
                       <Text style={[styles.countBadgeText, { color: meta.color }]}>{items.length}</Text>
                     </View>
                   </View>
-                  {!isReordering && (
-                    <TouchableOpacity style={[styles.sectionAddBtn, { backgroundColor: meta.color }]} onPress={() => openAdd(cat)}>
-                      <Feather name="plus" size={14} color="#fff" />
+                  <View style={styles.sectionHeaderActions}>
+                    {!isReordering && (
+                      <TouchableOpacity
+                        testID={`add-food-to-card-${cat}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Add food to ${meta.label}`}
+                        style={[styles.sectionAddBtn, { backgroundColor: meta.color }]}
+                        onPress={() => openAdd(cat)}
+                      >
+                        <Feather name="plus" size={14} color="#fff" />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      testID={`delete-food-card-${cat}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${meta.label} card`}
+                      style={styles.sectionDeleteBtn}
+                      onPress={() => handleDeleteCategory(cat)}
+                    >
+                      <Feather name="trash-2" size={13} color="#DC2626" />
                     </TouchableOpacity>
-                  )}
+                  </View>
                 </View>
 
                 {items.length === 0 ? (
@@ -513,11 +573,13 @@ const styles = StyleSheet.create({
   sectionCardReordering: { shadowOpacity: 0.06, elevation: 4 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14 },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+  sectionHeaderActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   sectionIconBox: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   sectionTitle: { fontSize: 16, fontWeight: "700" as const },
   countBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   countBadgeText: { fontSize: 12, fontWeight: "700" as const },
   sectionAddBtn: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  sectionDeleteBtn: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FEE2E2" },
   sectionEmpty: { paddingHorizontal: 14, paddingBottom: 14, paddingTop: 2 },
   sectionEmptyText: { fontSize: 13, fontStyle: "italic" as const },
   foodRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
