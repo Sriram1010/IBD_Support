@@ -18,6 +18,7 @@ import {
   getProgressColor,
 } from "@/hooks/useDateString";
 import { SimpleTimeInput, parse24h } from "@/components/WheelPicker";
+import { AutoHideScrollView } from "@/components/AutoHideScrollView";
 
 const GAL_PRESETS = [
   { label: "0.5 gal", ml: 1893 },
@@ -480,7 +481,7 @@ export default function DiaryScreen() {
           </View>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <AutoHideScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
 
           {/* FOOD LOG */}
           <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
@@ -723,7 +724,7 @@ export default function DiaryScreen() {
               </TouchableOpacity>
             )}
           </View>
-        </ScrollView>
+        </AutoHideScrollView>
 
         {/* ADD/EDIT MEAL MODAL */}
         <Modal visible={showMealModal} animationType="slide" transparent>

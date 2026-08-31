@@ -7,6 +7,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AutoHideScrollView } from "@/components/AutoHideScrollView";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
@@ -106,7 +107,7 @@ export default function MedsScreen() {
           <Text style={styles.bannerText}>{sorted.length} medication{sorted.length !== 1 ? "s" : ""} tracked</Text>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <AutoHideScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
           {sorted.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Feather name="package" size={48} color={colors.placeholder} />
@@ -163,7 +164,7 @@ export default function MedsScreen() {
               );
             })
           )}
-        </ScrollView>
+        </AutoHideScrollView>
 
         <Modal visible={showSheet} animationType="slide" transparent>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>

@@ -8,6 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AutoHideScrollView } from "@/components/AutoHideScrollView";
 import { useRouter } from "expo-router";
 
 import Colors from "@/constants/colors";
@@ -166,9 +167,8 @@ export default function FoodScreen() {
           </View>
         )}
 
-        <ScrollView
+        <AutoHideScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }}
-          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           {categoryOrder.map((cat, orderIdx) => {
@@ -265,7 +265,7 @@ export default function FoodScreen() {
               </View>
             );
           })}
-        </ScrollView>
+        </AutoHideScrollView>
 
         {/* ADD/EDIT SHEET */}
         <Modal visible={showSheet} animationType="slide" transparent>

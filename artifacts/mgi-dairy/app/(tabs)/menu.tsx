@@ -10,6 +10,7 @@ import { WebView } from "react-native-webview";
 import { useApp as useAppContext } from "@/context/AppContext";
 import Colors from "@/constants/colors";
 import { SimpleTimeInput } from "@/components/WheelPicker";
+import { AutoHideScrollView } from "@/components/AutoHideScrollView";
 
 function MenuSimple24hInput({ value, onChange, colors }: { value: string; onChange: (v: string) => void; colors: any }) {
   const [text, setText] = React.useState(value || "08:00");
@@ -183,7 +184,7 @@ export default function MenuScreen() {
         })}
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
+      <AutoHideScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}>
         {dayItems.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="calendar" size={40} color={colors.placeholder} />
@@ -228,7 +229,7 @@ export default function MenuScreen() {
             ))}
           </View>
         )}
-      </ScrollView>
+      </AutoHideScrollView>
 
       <TouchableOpacity style={[styles.fab, { backgroundColor: colors.purple }]} onPress={openAdd}>
         <Feather name="plus" size={26} color="#fff" />

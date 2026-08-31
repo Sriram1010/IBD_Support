@@ -14,6 +14,7 @@ import Colors from "@/constants/colors";
 import { useApp, BowelLog, MealEntry } from "@/context/AppContext";
 import { calcSleepHours, calcSleepHoursNum } from "@/hooks/useDateString";
 import { SimpleTimeInput, parse24h, to24h } from "@/components/WheelPicker";
+import { AutoHideScrollView } from "@/components/AutoHideScrollView";
 
 function CalSimple24hInput({ value, onChange, colors }: { value: string; onChange: (v: string) => void; colors: any }) {
   const [text, setText] = React.useState(value || "07:00");
@@ -434,7 +435,7 @@ export default function CalendarScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: bottomPad }} showsVerticalScrollIndicator={false}>
+      <AutoHideScrollView contentContainerStyle={{ paddingBottom: bottomPad }}>
         {viewMode === "monthly" && (
           <MonthlyView viewYear={viewYear} viewMonth={viewMonth} todayStr={todayStr} selectedDate={selectedDate} bowelMap={bowelMap} colors={colors} onPrev={prevMonth} onNext={nextMonth} onDayTap={handleDayTap} />
         )}
@@ -570,7 +571,7 @@ export default function CalendarScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </ScrollView>
+      </AutoHideScrollView>
 
       {/* DAY SHEET */}
       <Modal visible={showDaySheet} animationType="slide" transparent>
