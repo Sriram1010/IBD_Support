@@ -99,10 +99,10 @@ export default function MedsScreen() {
             <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Daily meds & supplements</Text>
           </View>
           <View style={styles.headerActions}>
-            <ProfileSettingsButton color={colors.headerText} />
             <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
               <Feather name="plus" size={18} color="#fff" />
             </TouchableOpacity>
+            <ProfileSettingsButton color={colors.headerText} />
           </View>
         </View>
 
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontWeight: "700" as const },
   headerSub: { fontSize: 13, marginTop: 2 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  headerAddBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  headerAddBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   banner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
   bannerText: { color: "#fff", fontSize: 13, fontWeight: "600" as const },
   emptyContainer: { alignItems: "center", paddingTop: 80, gap: 12 },
