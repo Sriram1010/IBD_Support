@@ -39,6 +39,12 @@ export const createAiMealAssistantBodyRecentSymptomsItemMax = 300;
 
 export const createAiMealAssistantBodyRecentSymptomsMax = 20;
 
+export const createAiMealAssistantBodyRedFlagSymptomsMax = 7;
+
+export const createAiMealAssistantBodyLearningHistoryItemMax = 300;
+
+export const createAiMealAssistantBodyLearningHistoryMax = 20;
+
 export const createAiMealAssistantBodyImageBase64Max = 11184812;
 
 export const CreateAiMealAssistantBody = zod.object({
@@ -58,6 +64,23 @@ export const CreateAiMealAssistantBody = zod.object({
   recentSymptoms: zod
     .array(zod.string().max(createAiMealAssistantBodyRecentSymptomsItemMax))
     .max(createAiMealAssistantBodyRecentSymptomsMax),
+  redFlagSymptoms: zod
+    .array(
+      zod.enum([
+        "blood_in_stool",
+        "severe_pain",
+        "persistent_vomiting",
+        "fainting",
+        "dehydration",
+        "high_fever",
+        "cannot_keep_fluids_down",
+      ]),
+    )
+    .max(createAiMealAssistantBodyRedFlagSymptomsMax),
+  gutState: zod.enum(["steady", "sensitive", "flare", "recovering", "unknown"]),
+  learningHistory: zod
+    .array(zod.string().max(createAiMealAssistantBodyLearningHistoryItemMax))
+    .max(createAiMealAssistantBodyLearningHistoryMax),
   imageBase64: zod
     .string()
     .max(createAiMealAssistantBodyImageBase64Max)
@@ -71,7 +94,37 @@ export const CreateAiMealAssistantBody = zod.object({
 export const CreateAiMealAssistantResponse = zod.object({
   headline: zod.string(),
   overview: zod.string(),
-  riskLevel: zod.enum(["low", "moderate", "high", "unknown"]),
+  personalFitLevel: zod.enum([
+    "good_fit",
+    "use_caution",
+    "high_caution",
+    "unclear",
+  ]),
+  confidence: zod.enum(["low", "medium", "high"]),
+  guidanceAction: zod.enum([
+    "eat",
+    "limit",
+    "swap",
+    "avoid",
+    "observe",
+    "seek_care",
+  ]),
+  guidanceSummary: zod.string(),
+  evidence: zod.array(
+    zod.object({
+      stage: zod.enum(["captured", "pattern", "personal", "current"]),
+      signal: zod.enum(["support", "caution", "unknown"]),
+      title: zod.string(),
+      detail: zod.string(),
+    }),
+  ),
+  contextUsed: zod.object({
+    safeFoods: zod.number(),
+    triggerFoods: zod.number(),
+    recentMeals: zod.number(),
+    symptomCheckIns: zod.number(),
+    learningEvents: zod.number(),
+  }),
   detectedFoods: zod.array(zod.string()),
   considerations: zod.array(zod.string()),
   suggestions: zod.array(
@@ -84,5 +137,8 @@ export const CreateAiMealAssistantResponse = zod.object({
       rationale: zod.string(),
     }),
   ),
+  swaps: zod.array(zod.string()),
+  watchFor: zod.array(zod.string()),
+  learningPrompt: zod.string(),
   disclaimer: zod.string(),
 });

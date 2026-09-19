@@ -5,15 +5,27 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { AiMealAssistantResultRiskLevel } from "./aiMealAssistantResultRiskLevel";
+import type { AiMealAssistantResultConfidence } from "./aiMealAssistantResultConfidence";
+import type { AiMealAssistantResultGuidanceAction } from "./aiMealAssistantResultGuidanceAction";
+import type { AiMealAssistantResultPersonalFitLevel } from "./aiMealAssistantResultPersonalFitLevel";
+import type { AiMealContextUsed } from "./aiMealContextUsed";
+import type { AiMealEvidence } from "./aiMealEvidence";
 import type { AiMealSuggestion } from "./aiMealSuggestion";
 
 export interface AiMealAssistantResult {
   headline: string;
   overview: string;
-  riskLevel: AiMealAssistantResultRiskLevel;
+  personalFitLevel: AiMealAssistantResultPersonalFitLevel;
+  confidence: AiMealAssistantResultConfidence;
+  guidanceAction: AiMealAssistantResultGuidanceAction;
+  guidanceSummary: string;
+  evidence: AiMealEvidence[];
+  contextUsed: AiMealContextUsed;
   detectedFoods: string[];
   considerations: string[];
   suggestions: AiMealSuggestion[];
+  swaps: string[];
+  watchFor: string[];
+  learningPrompt: string;
   disclaimer: string;
 }

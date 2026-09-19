@@ -28,6 +28,30 @@ export const AiMealAssistantInputMealType = {
   any: "any",
 } as const;
 
+export type AiMealAssistantInputRedFlagSymptomsItem =
+  (typeof AiMealAssistantInputRedFlagSymptomsItem)[keyof typeof AiMealAssistantInputRedFlagSymptomsItem];
+
+export const AiMealAssistantInputRedFlagSymptomsItem = {
+  blood_in_stool: "blood_in_stool",
+  severe_pain: "severe_pain",
+  persistent_vomiting: "persistent_vomiting",
+  fainting: "fainting",
+  dehydration: "dehydration",
+  high_fever: "high_fever",
+  cannot_keep_fluids_down: "cannot_keep_fluids_down",
+} as const;
+
+export type AiMealAssistantInputGutState =
+  (typeof AiMealAssistantInputGutState)[keyof typeof AiMealAssistantInputGutState];
+
+export const AiMealAssistantInputGutState = {
+  steady: "steady",
+  sensitive: "sensitive",
+  flare: "flare",
+  recovering: "recovering",
+  unknown: "unknown",
+} as const;
+
 export type AiMealAssistantInputImageMimeType =
   (typeof AiMealAssistantInputImageMimeType)[keyof typeof AiMealAssistantInputImageMimeType];
 
@@ -52,12 +76,51 @@ export interface AiMealAssistantInput {
   recentMeals: string[];
   /** @maxItems 20 */
   recentSymptoms: string[];
+  /** @maxItems 7 */
+  redFlagSymptoms: AiMealAssistantInputRedFlagSymptomsItem[];
+  gutState: AiMealAssistantInputGutState;
+  /** @maxItems 20 */
+  learningHistory: string[];
   /**
    * Base64-encoded image, capped at the length of an 8 MiB decoded payload.
    * @maxLength 11184812
    */
   imageBase64?: string;
   imageMimeType?: AiMealAssistantInputImageMimeType;
+}
+
+export type AiMealEvidenceStage =
+  (typeof AiMealEvidenceStage)[keyof typeof AiMealEvidenceStage];
+
+export const AiMealEvidenceStage = {
+  captured: "captured",
+  pattern: "pattern",
+  personal: "personal",
+  current: "current",
+} as const;
+
+export type AiMealEvidenceSignal =
+  (typeof AiMealEvidenceSignal)[keyof typeof AiMealEvidenceSignal];
+
+export const AiMealEvidenceSignal = {
+  support: "support",
+  caution: "caution",
+  unknown: "unknown",
+} as const;
+
+export interface AiMealEvidence {
+  stage: AiMealEvidenceStage;
+  signal: AiMealEvidenceSignal;
+  title: string;
+  detail: string;
+}
+
+export interface AiMealContextUsed {
+  safeFoods: number;
+  triggerFoods: number;
+  recentMeals: number;
+  symptomCheckIns: number;
+  learningEvents: number;
 }
 
 export type AiMealSuggestionMealType =
@@ -79,23 +142,52 @@ export interface AiMealSuggestion {
   rationale: string;
 }
 
-export type AiMealAssistantResultRiskLevel =
-  (typeof AiMealAssistantResultRiskLevel)[keyof typeof AiMealAssistantResultRiskLevel];
+export type AiMealAssistantResultPersonalFitLevel =
+  (typeof AiMealAssistantResultPersonalFitLevel)[keyof typeof AiMealAssistantResultPersonalFitLevel];
 
-export const AiMealAssistantResultRiskLevel = {
+export const AiMealAssistantResultPersonalFitLevel = {
+  good_fit: "good_fit",
+  use_caution: "use_caution",
+  high_caution: "high_caution",
+  unclear: "unclear",
+} as const;
+
+export type AiMealAssistantResultConfidence =
+  (typeof AiMealAssistantResultConfidence)[keyof typeof AiMealAssistantResultConfidence];
+
+export const AiMealAssistantResultConfidence = {
   low: "low",
-  moderate: "moderate",
+  medium: "medium",
   high: "high",
-  unknown: "unknown",
+} as const;
+
+export type AiMealAssistantResultGuidanceAction =
+  (typeof AiMealAssistantResultGuidanceAction)[keyof typeof AiMealAssistantResultGuidanceAction];
+
+export const AiMealAssistantResultGuidanceAction = {
+  eat: "eat",
+  limit: "limit",
+  swap: "swap",
+  avoid: "avoid",
+  observe: "observe",
+  seek_care: "seek_care",
 } as const;
 
 export interface AiMealAssistantResult {
   headline: string;
   overview: string;
-  riskLevel: AiMealAssistantResultRiskLevel;
+  personalFitLevel: AiMealAssistantResultPersonalFitLevel;
+  confidence: AiMealAssistantResultConfidence;
+  guidanceAction: AiMealAssistantResultGuidanceAction;
+  guidanceSummary: string;
+  evidence: AiMealEvidence[];
+  contextUsed: AiMealContextUsed;
   detectedFoods: string[];
   considerations: string[];
   suggestions: AiMealSuggestion[];
+  swaps: string[];
+  watchFor: string[];
+  learningPrompt: string;
   disclaimer: string;
 }
 

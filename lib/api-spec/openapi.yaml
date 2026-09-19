@@ -116,6 +116,28 @@ components:
           items:
             type: string
             maxLength: 300
+        redFlagSymptoms:
+          type: array
+          maxItems: 7
+          items:
+            type: string
+            enum:
+              - blood_in_stool
+              - severe_pain
+              - persistent_vomiting
+              - fainting
+              - dehydration
+              - high_fever
+              - cannot_keep_fluids_down
+        gutState:
+          type: string
+          enum: [steady, sensitive, flare, recovering, unknown]
+        learningHistory:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 300
         imageBase64:
           type: string
           description: Base64-encoded image, capped at the length of an 8 MiB decoded payload.
@@ -132,6 +154,46 @@ components:
         - triggerFoods
         - recentMeals
         - recentSymptoms
+        - redFlagSymptoms
+        - gutState
+        - learningHistory
+    AiMealEvidence:
+      type: object
+      properties:
+        stage:
+          type: string
+          enum: [captured, pattern, personal, current]
+        signal:
+          type: string
+          enum: [support, caution, unknown]
+        title:
+          type: string
+        detail:
+          type: string
+      required:
+        - stage
+        - signal
+        - title
+        - detail
+    AiMealContextUsed:
+      type: object
+      properties:
+        safeFoods:
+          type: integer
+        triggerFoods:
+          type: integer
+        recentMeals:
+          type: integer
+        symptomCheckIns:
+          type: integer
+        learningEvents:
+          type: integer
+      required:
+        - safeFoods
+        - triggerFoods
+        - recentMeals
+        - symptomCheckIns
+        - learningEvents
     AiMealSuggestion:
       type: object
       properties:
@@ -164,9 +226,23 @@ components:
           type: string
         overview:
           type: string
-        riskLevel:
+        personalFitLevel:
           type: string
-          enum: [low, moderate, high, unknown]
+          enum: [good_fit, use_caution, high_caution, unclear]
+        confidence:
+          type: string
+          enum: [low, medium, high]
+        guidanceAction:
+          type: string
+          enum: [eat, limit, swap, avoid, observe, seek_care]
+        guidanceSummary:
+          type: string
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiMealEvidence"
+        contextUsed:
+          $ref: "#/components/schemas/AiMealContextUsed"
         detectedFoods:
           type: array
           items:
@@ -179,15 +255,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AiMealSuggestion"
+        swaps:
+          type: array
+          items:
+            type: string
+        watchFor:
+          type: array
+          items:
+            type: string
+        learningPrompt:
+          type: string
         disclaimer:
           type: string
       required:
         - headline
         - overview
-        - riskLevel
+        - personalFitLevel
+        - confidence
+        - guidanceAction
+        - guidanceSummary
+        - evidence
+        - contextUsed
         - detectedFoods
         - considerations
         - suggestions
+        - swaps
+        - watchFor
+        - learningPrompt
         - disclaimer
     ErrorResponse:
       type: object

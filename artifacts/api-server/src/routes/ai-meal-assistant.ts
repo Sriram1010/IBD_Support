@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { ai } from "@workspace/integrations-gemini-ai";
 import {
   CreateAiMealAssistantBody,
   CreateAiMealAssistantResponse,
@@ -18,19 +18,61 @@ const RED_FLAG_PATTERN =
   /\b(?:blood\s+in\s+(?:the\s+)?stool|bloody\s+stool|severe\s+pain|persistent\s+vomiting|fainting|dehydration|high\s+fever|inability\s+to\s+keep\s+(?:fluids|liquids)\s+down|can['’]?t\s+keep\s+(?:fluids|liquids)\s+down)\b/i;
 const ESCALATION_CONSIDERATION =
   "Some logged symptoms may need prompt medical attention (such as blood in stool, severe pain, persistent vomiting, fainting, dehydration, high fever, or inability to keep fluids down). Contact a clinician or urgent care promptly; seek emergency help if symptoms are severe.";
+const ESCALATION_HEADLINE = "Please seek prompt medical care";
+const ESCALATION_OVERVIEW =
+  "The information you shared includes a warning sign that should be assessed by a clinician rather than interpreted by this meal assistant.";
+const ESCALATION_GUIDANCE =
+  "Contact a clinician or urgent care promptly for guidance. Call emergency services if symptoms are severe or there is immediate danger. Do not use this guidance to diagnose or delay care.";
+const ESCALATION_EVIDENCE = [
+  {
+    stage: "current" as const,
+    signal: "caution" as const,
+    title: "A warning sign was reported",
+    detail: "A reported symptom or pain level needs prompt clinical assessment; this assistant cannot determine its cause.",
+  },
+];
+const ESCALATION_LEARNING_PROMPT =
+  "After speaking with a clinician, record any care guidance they provide and how your symptoms change.";
+const PAIN_SEVERITY_PATTERN =
+  /\bpain\b[^\d]{0,24}(?:8|9|10)\s*(?:\/\s*10|out\s+of\s+10)\b|\b(?:8|9|10)\s*(?:\/\s*10|out\s+of\s+10)\b[^\d]{0,24}\bpain\b/i;
 
-const SYSTEM_PROMPT = `You are a careful food-planning assistant for people living with IBS, IBD, or a sensitive gut.
-Provide practical, non-diagnostic meal guidance. You are not a clinician and must not diagnose, prescribe treatment, or tell someone to stop medication or ignore urgent symptoms.
-Personal food logs are observations, not universal medical truths. Treat safe foods and trigger foods as user-specific signals, never as proof of causation or as rules that apply to everyone.
-Do not claim that a food caused a symptom. Use language such as "may be associated with this person's logged experience" and mention portion, preparation, and context when relevant.
-If a scan is unclear, say so and set riskLevel to "unknown". Do not invent ingredients or nutrition facts.
-Always return exactly one JSON object matching the requested schema, with no markdown fences and no additional keys:
+const SYSTEM_PROMPT = `You are a careful, non-diagnostic food-pattern assistant for someone living with IBS, IBD, or a sensitive gut.
+
+Use this transparent data flow:
+1. Capture: describe what the current request and image (if provided) actually show.
+2. Connect patterns: connect only the structured foods, meals, symptoms, and learning history supplied by the user.
+3. Personalize: treat this person's safe foods, trigger foods, and outcomes as observations about them, never as universal rules.
+4. Reason: consider the current gut state and meal context, preserving uncertainty when evidence is incomplete.
+5. Guide: choose one action from eat, limit, swap, avoid, observe, or seek_care; provide practical alternatives. The app handles urgent flags before Gemini, so use seek_care only for schema consistency and do not attempt urgent-flag triage.
+6. Learn: invite the person to record how the meal felt so a future check can learn from the outcome.
+
+Never diagnose, prescribe, tell someone to stop medication, or claim that a food caused a symptom. Never invent hidden ingredients, portions, onset, or nutrition facts from an unclear image. Do not present a prediction or certainty. If the image or context is incomplete, use unclear/observe and say what is unknown. Personal food history is observational evidence only.
+
+Return exactly one JSON object, with no markdown fences or additional keys:
 {
   "headline": "short result title",
-  "overview": "brief, plain-language summary",
-  "riskLevel": "low" | "moderate" | "high" | "unknown",
-  "detectedFoods": ["foods confidently identified or []"],
-  "considerations": ["specific, practical considerations"],
+  "overview": "plain-language summary",
+  "personalFitLevel": "good_fit" | "use_caution" | "high_caution" | "unclear",
+  "confidence": "low" | "medium" | "high",
+  "guidanceAction": "eat" | "limit" | "swap" | "avoid" | "observe" | "seek_care",
+  "guidanceSummary": "practical non-medical guidance",
+  "evidence": [
+    {
+      "stage": "captured" | "pattern" | "personal" | "current",
+      "signal": "support" | "caution" | "unknown",
+      "title": "short evidence title",
+      "detail": "detail tied to supplied context, or explicitly unknown"
+    }
+  ],
+  "contextUsed": {
+    "safeFoods": 0,
+    "triggerFoods": 0,
+    "recentMeals": 0,
+    "symptomCheckIns": 0,
+    "learningEvents": 0
+  },
+  "detectedFoods": [],
+  "considerations": [],
   "suggestions": [
     {
       "title": "meal name",
@@ -38,18 +80,33 @@ Always return exactly one JSON object matching the requested schema, with no mar
       "description": "short description",
       "ingredients": ["ingredient"],
       "preparation": "simple preparation guidance",
-      "rationale": "why this fits the provided context, without claiming certainty"
+      "rationale": "why this fits the supplied context without certainty"
     }
   ],
-  "disclaimer": "brief reminder that this is educational guidance and not medical advice"
+  "swaps": [],
+  "watchFor": [],
+  "learningPrompt": "what to record after trying this",
+  "disclaimer": "brief educational disclaimer"
 }
-For suggestions mode, return 3 to 5 suggestions. For scan mode, return 0 to 3 safer meal suggestions based on what was identified.
-Keep all strings concise and actionable.`;
+For suggestions mode, return 3 to 5 suggestions. For scan mode, return 0 to 3 suggestions. Keep strings concise and actionable.`;
 
 function stripJsonFences(value: string): string {
   const trimmed = value.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   return fenced ? fenced[1].trim() : trimmed;
+}
+
+function normalizeStringList(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value
+    .map((item) => {
+      if (typeof item === "string") return item;
+      if (typeof item !== "object" || item === null) return "";
+      return Object.values(item)
+        .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+        .join(" — ");
+    })
+    .filter((item) => item.length > 0);
 }
 
 function decodeAndValidateImage(base64: string, mimeType: string): boolean {
@@ -138,6 +195,39 @@ router.post("/ai/meal-assistant", async (req, res): Promise<void> => {
     return;
   }
 
+  const contextUsed = {
+    safeFoods: body.safeFoods.length,
+    triggerFoods: body.triggerFoods.length,
+    recentMeals: body.recentMeals.length,
+    symptomCheckIns: body.recentSymptoms.length,
+    learningEvents: body.learningHistory.length,
+  };
+  const reportedText = [body.prompt, ...body.recentSymptoms].join(" ");
+  const hasRedFlag =
+    body.redFlagSymptoms.length > 0 ||
+    PAIN_SEVERITY_PATTERN.test(reportedText) ||
+    RED_FLAG_PATTERN.test(reportedText);
+  if (hasRedFlag) {
+    res.json({
+      headline: ESCALATION_HEADLINE,
+      overview: ESCALATION_OVERVIEW,
+      personalFitLevel: "unclear",
+      confidence: "high",
+      guidanceAction: "seek_care",
+      guidanceSummary: ESCALATION_GUIDANCE,
+      evidence: ESCALATION_EVIDENCE,
+      contextUsed,
+      detectedFoods: [],
+      considerations: [ESCALATION_CONSIDERATION],
+      suggestions: [],
+      swaps: [],
+      watchFor: [],
+      learningPrompt: ESCALATION_LEARNING_PROMPT,
+      disclaimer: FIXED_DISCLAIMER,
+    });
+    return;
+  }
+
   const clientKey = req.ip || req.socket.remoteAddress || "unknown";
   const retryAfterSeconds = getRetryAfterSeconds(clientKey);
   if (retryAfterSeconds !== null) {
@@ -152,43 +242,36 @@ router.post("/ai/meal-assistant", async (req, res): Promise<void> => {
     requestedMealType: body.mealType,
     userPreferences: body.preferences,
     userQuestion: body.prompt,
+    gutState: body.gutState,
     loggedSafeFoods: body.safeFoods,
     loggedTriggerFoods: body.triggerFoods,
     recentMeals: body.recentMeals,
     recentSymptoms: body.recentSymptoms,
+    learningHistory: body.learningHistory,
   });
-
-  const userContent: Array<
-    | { type: "text"; text: string }
-    | { type: "image_url"; image_url: { url: string } }
-  > = [
-    {
-      type: "text",
-      text: `Use this private user context to answer the request. Do not repeat private context unnecessarily:\n${context}`,
-    },
-  ];
-
+  const userParts: Array<
+    { text: string } | { inlineData: { mimeType: string; data: string } }
+  > = [{ text: `Use this private user context to answer the request:\n${context}` }];
   if (body.imageBase64 && body.imageMimeType) {
-    userContent.push({
-      type: "image_url",
-      image_url: {
-        url: `data:${body.imageMimeType};base64,${body.imageBase64}`,
+    userParts.push({
+      inlineData: {
+        mimeType: body.imageMimeType,
+        data: body.imageBase64,
       },
     });
   }
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5.6-terra",
-      max_completion_tokens: 4096,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userContent },
-      ],
+    const completion = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{ role: "user", parts: userParts }],
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        responseMimeType: "application/json",
+        maxOutputTokens: 8192,
+      },
     });
-
-    const modelContent = completion.choices[0]?.message?.content;
+    const modelContent = completion.text;
     if (!modelContent) {
       req.log.error({ mode: body.mode, reason: "empty_model_response" }, "AI meal assistant provider error");
       res.status(502).json({ error: "The meal assistant returned an empty response." });
@@ -204,20 +287,37 @@ router.post("/ai/meal-assistant", async (req, res): Promise<void> => {
       return;
     }
 
-    const validatedResponse = CreateAiMealAssistantResponse.safeParse(modelJson);
+    const responseCandidate =
+      typeof modelJson === "object" && modelJson !== null
+        ? {
+            ...modelJson,
+            contextUsed,
+            detectedFoods: normalizeStringList(Reflect.get(modelJson, "detectedFoods")),
+            considerations: normalizeStringList(Reflect.get(modelJson, "considerations")),
+            swaps: normalizeStringList(Reflect.get(modelJson, "swaps")),
+            watchFor: normalizeStringList(Reflect.get(modelJson, "watchFor")),
+          }
+        : modelJson;
+    const validatedResponse = CreateAiMealAssistantResponse.safeParse(responseCandidate);
     if (!validatedResponse.success) {
-      req.log.error({ mode: body.mode, reason: "schema_validation_failed" }, "AI meal assistant returned an invalid schema");
+      req.log.error(
+        {
+          mode: body.mode,
+          reason: "schema_validation_failed",
+          issues: validatedResponse.error.issues.slice(0, 8).map((issue) => ({
+            path: issue.path.join("."),
+            code: issue.code,
+          })),
+        },
+        "AI meal assistant returned an invalid schema",
+      );
       res.status(502).json({ error: "The meal assistant returned an invalid response." });
       return;
     }
 
-    const hasRedFlagSymptoms = RED_FLAG_PATTERN.test(body.recentSymptoms.join(" "));
-    const considerations = hasRedFlagSymptoms
-      ? [ESCALATION_CONSIDERATION, ...validatedResponse.data.considerations]
-      : validatedResponse.data.considerations;
     res.json({
       ...validatedResponse.data,
-      considerations,
+      contextUsed,
       disclaimer: FIXED_DISCLAIMER,
     });
   } catch {

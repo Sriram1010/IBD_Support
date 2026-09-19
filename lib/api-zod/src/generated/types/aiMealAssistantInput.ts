@@ -5,9 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AiMealAssistantInputGutState } from "./aiMealAssistantInputGutState";
 import type { AiMealAssistantInputImageMimeType } from "./aiMealAssistantInputImageMimeType";
 import type { AiMealAssistantInputMealType } from "./aiMealAssistantInputMealType";
 import type { AiMealAssistantInputMode } from "./aiMealAssistantInputMode";
+import type { AiMealAssistantInputRedFlagSymptomsItem } from "./aiMealAssistantInputRedFlagSymptomsItem";
 
 export interface AiMealAssistantInput {
   mode: AiMealAssistantInputMode;
@@ -24,6 +26,11 @@ export interface AiMealAssistantInput {
   recentMeals: string[];
   /** @maxItems 20 */
   recentSymptoms: string[];
+  /** @maxItems 7 */
+  redFlagSymptoms: AiMealAssistantInputRedFlagSymptomsItem[];
+  gutState: AiMealAssistantInputGutState;
+  /** @maxItems 20 */
+  learningHistory: string[];
   /**
    * Base64-encoded image, capped at the length of an 8 MiB decoded payload.
    * @maxLength 11184812

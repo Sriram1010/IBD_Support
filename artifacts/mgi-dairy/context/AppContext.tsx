@@ -61,6 +61,15 @@ export interface WeightEntry {
   notes?: string;
 }
 
+export interface AiLearningEvent {
+  id: string;
+  date: string;
+  mealLabel: string;
+  outcome: "worked_well" | "mixed" | "did_not_work";
+  gutState: string;
+  notes?: string;
+}
+
 export type FoodCategory = string;
 
 export interface FoodTrigger {
@@ -188,6 +197,11 @@ interface AppContextType {
   getTodayExercise: (date: string) => ExerciseLog | undefined;
   getBowelLog: (date: string) => BowelLog | undefined;
   getWeightEntry: (date: string) => WeightEntry | undefined;
+  aiLearningEvents: AiLearningEvent[];
+  addAiLearningEvent: (event: Omit<AiLearningEvent, "id">) => Promise<void>;
+  clearAiLearningEvents: () => Promise<void>;
+  aiConsentGiven: boolean;
+  setAiConsentGiven: (given: boolean) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -213,6 +227,8 @@ const STORAGE_KEYS = {
   FATS_GOAL: "mgi_fats_goal",
   FIBER_GOAL: "mgi_fiber_goal",
   PROFILE: "mgi_user_profile",
+  AI_LEARNING: "mgi_ai_learning",
+  AI_CONSENT: "mgi_ai_consent",
 };
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -275,13 +291,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [fatsGoal, setFatsGoalState] = useState<number>(65);
   const [fiberGoal, setFiberGoalState] = useState<number>(25);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [aiLearningEvents, setAiLearningEvents] = useState<AiLearningEvent[]>([]);
+  const [aiConsentGiven, setAiConsentGivenState] = useState<boolean>(false);
   const menuItemsRef = useRef<MenuItem[]>([]);
   const menuWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const aiLearningEventsRef = useRef<AiLearningEvent[]>([]);
+  const aiLearningWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const init = async () => {
-      const [m, w, s, ex, b, wt, ft, med, t, sym, mn, savedProfile] = await Promise.all([
+      const [m, w, s, ex, b, wt, ft, med, t, sym, mn, savedProfile, aiEvents] = await Promise.all([
         loadData<MealEntry>(STORAGE_KEYS.MEALS),
         loadData<WaterEntry>(STORAGE_KEYS.WATER),
         loadData<SleepLog>(STORAGE_KEYS.SLEEP),
@@ -294,8 +314,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loadData<SymptomLog>(STORAGE_KEYS.SYMPTOMS),
         loadData<MenuItem>(STORAGE_KEYS.MENU),
         loadObject<UserProfile>(STORAGE_KEYS.PROFILE, DEFAULT_PROFILE),
+        loadData<AiLearningEvent>(STORAGE_KEYS.AI_LEARNING),
       ]);
-      const [wg, sg, eg, wtg, cg, pg, crg, fg, fibg] = await Promise.all([
+      const [wg, sg, eg, wtg, cg, pg, crg, fg, fibg, consent] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.WATER_GOAL),
         AsyncStorage.getItem(STORAGE_KEYS.SLEEP_GOAL),
         AsyncStorage.getItem(STORAGE_KEYS.EXERCISE_GOAL),
@@ -305,6 +326,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(STORAGE_KEYS.CARBS_GOAL),
         AsyncStorage.getItem(STORAGE_KEYS.FATS_GOAL),
         AsyncStorage.getItem(STORAGE_KEYS.FIBER_GOAL),
+        AsyncStorage.getItem(STORAGE_KEYS.AI_CONSENT),
       ]);
       setMeals(m);
       setWaterEntries(w);
@@ -317,7 +339,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setTriggers(t);
       setSymptomLogs(sym);
       setMenuItems(mn);
+      setAiLearningEvents(aiEvents);
       menuItemsRef.current = mn;
+      aiLearningEventsRef.current = aiEvents;
       setProfile(savedProfile);
       if (wg) setWaterGoalMlState(parseInt(wg, 10));
       if (sg) setSleepGoalHoursState(parseFloat(sg));
@@ -328,6 +352,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (crg) setCarbsGoalState(parseInt(crg, 10));
       if (fg) setFatsGoalState(parseInt(fg, 10));
       if (fibg) setFiberGoalState(parseInt(fibg, 10));
+      if (consent === "true") setAiConsentGivenState(true);
       setIsLoading(false);
     };
     init();
@@ -540,6 +565,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(STORAGE_KEYS.FIBER_GOAL, String(v));
   }, []);
 
+  const persistAiLearningMutation = useCallback(
+    async (mutate: (items: AiLearningEvent[]) => AiLearningEvent[]) => {
+      const write = aiLearningWriteQueueRef.current.then(async () => {
+        const next = mutate(aiLearningEventsRef.current);
+        await saveData(STORAGE_KEYS.AI_LEARNING, next);
+        aiLearningEventsRef.current = next;
+        setAiLearningEvents(next);
+      });
+      aiLearningWriteQueueRef.current = write.catch(() => undefined);
+      await write;
+    },
+    [],
+  );
+
+  const addAiLearningEvent = useCallback(async (event: Omit<AiLearningEvent, "id">) => {
+    const n: AiLearningEvent = { ...event, id: generateId() };
+    await persistAiLearningMutation((items) => [...items, n]);
+  }, [persistAiLearningMutation]);
+
+  const clearAiLearningEvents = useCallback(async () => {
+    await persistAiLearningMutation(() => []);
+  }, [persistAiLearningMutation]);
+
+  const setAiConsentGiven = useCallback(async (given: boolean) => {
+    setAiConsentGivenState(given);
+    await AsyncStorage.setItem(STORAGE_KEYS.AI_CONSENT, String(given));
+  }, []);
+
   const getTodayWaterTotal = useCallback(
     (date: string) => waterEntries.filter((w) => w.date === date).reduce((sum, w) => sum + w.amountMl, 0),
     [waterEntries]
@@ -587,6 +640,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setWaterGoalMl, setSleepGoalHours, setExerciseGoalMinutes, setWeightGoalKg,
         setCalorieGoal, setProteinGoal, setCarbsGoal, setFatsGoal, setFiberGoal,
         getTodayWaterTotal, getTodaySleep, getTodayExercise, getBowelLog, getWeightEntry,
+        aiLearningEvents, addAiLearningEvent, clearAiLearningEvents, aiConsentGiven, setAiConsentGiven,
         isLoading,
       }}
     >

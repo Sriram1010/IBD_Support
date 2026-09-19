@@ -7,11 +7,19 @@
  */
 
 export * from "./aiMealAssistantInput";
+export * from "./aiMealAssistantInputGutState";
 export * from "./aiMealAssistantInputImageMimeType";
 export * from "./aiMealAssistantInputMealType";
 export * from "./aiMealAssistantInputMode";
+export * from "./aiMealAssistantInputRedFlagSymptomsItem";
 export * from "./aiMealAssistantResult";
-export * from "./aiMealAssistantResultRiskLevel";
+export * from "./aiMealAssistantResultConfidence";
+export * from "./aiMealAssistantResultGuidanceAction";
+export * from "./aiMealAssistantResultPersonalFitLevel";
+export * from "./aiMealContextUsed";
+export * from "./aiMealEvidence";
+export * from "./aiMealEvidenceSignal";
+export * from "./aiMealEvidenceStage";
 export * from "./aiMealSuggestion";
 export * from "./aiMealSuggestionMealType";
 export * from "./errorResponse";

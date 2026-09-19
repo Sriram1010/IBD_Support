@@ -1,0 +1,1 @@
+- [Externalized AI SDK runtime dependency](externalized-ai-sdk.md) — server bundles may externalize provider SDKs, requiring a direct runtime dependency in the server package.
