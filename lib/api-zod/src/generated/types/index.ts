@@ -6,4 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./aiMealAssistantInput";
+export * from "./aiMealAssistantInputImageMimeType";
+export * from "./aiMealAssistantInputMealType";
+export * from "./aiMealAssistantInputMode";
+export * from "./aiMealAssistantResult";
+export * from "./aiMealAssistantResultRiskLevel";
+export * from "./aiMealSuggestion";
+export * from "./aiMealSuggestionMealType";
+export * from "./errorResponse";
 export * from "./healthStatus";

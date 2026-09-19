@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: ai-meals
+    description: AI meal guidance operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /ai/meal-assistant:
+    post:
+      operationId: createAiMealAssistant
+      tags: [ai-meals]
+      summary: Generate personalized meal guidance
+      description: Generates meal suggestions or analyzes a meal, menu, or food-label image using the user's logged food and symptom context.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiMealAssistantInput"
+      responses:
+        "200":
+          description: AI meal guidance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiMealAssistantResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many AI requests from this client IP
+          headers:
+            Retry-After:
+              description: Seconds until another request may be attempted
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: AI provider error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +77,123 @@ components:
           type: string
       required:
         - status
+    AiMealAssistantInput:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [suggestions, scan]
+        mealType:
+          type: string
+          enum: [breakfast, lunch, dinner, snack, any]
+        preferences:
+          type: string
+          maxLength: 1000
+        prompt:
+          type: string
+          maxLength: 1000
+        safeFoods:
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            maxLength: 100
+        triggerFoods:
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            maxLength: 100
+        recentMeals:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 300
+        recentSymptoms:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 300
+        imageBase64:
+          type: string
+          description: Base64-encoded image, capped at the length of an 8 MiB decoded payload.
+          maxLength: 11184812
+        imageMimeType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+      required:
+        - mode
+        - mealType
+        - preferences
+        - prompt
+        - safeFoods
+        - triggerFoods
+        - recentMeals
+        - recentSymptoms
+    AiMealSuggestion:
+      type: object
+      properties:
+        title:
+          type: string
+        mealType:
+          type: string
+          enum: [breakfast, lunch, dinner, snack]
+        description:
+          type: string
+        ingredients:
+          type: array
+          items:
+            type: string
+        preparation:
+          type: string
+        rationale:
+          type: string
+      required:
+        - title
+        - mealType
+        - description
+        - ingredients
+        - preparation
+        - rationale
+    AiMealAssistantResult:
+      type: object
+      properties:
+        headline:
+          type: string
+        overview:
+          type: string
+        riskLevel:
+          type: string
+          enum: [low, moderate, high, unknown]
+        detectedFoods:
+          type: array
+          items:
+            type: string
+        considerations:
+          type: array
+          items:
+            type: string
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiMealSuggestion"
+        disclaimer:
+          type: string
+      required:
+        - headline
+        - overview
+        - riskLevel
+        - detectedFoods
+        - considerations
+        - suggestions
+        - disclaimer
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 

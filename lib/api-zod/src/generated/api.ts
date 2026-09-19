@@ -14,3 +14,75 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Generates meal suggestions or analyzes a meal, menu, or food-label image using the user's logged food and symptom context.
+ * @summary Generate personalized meal guidance
+ */
+export const createAiMealAssistantBodyPreferencesMax = 1000;
+
+export const createAiMealAssistantBodyPromptMax = 1000;
+
+export const createAiMealAssistantBodySafeFoodsItemMax = 100;
+
+export const createAiMealAssistantBodySafeFoodsMax = 30;
+
+export const createAiMealAssistantBodyTriggerFoodsItemMax = 100;
+
+export const createAiMealAssistantBodyTriggerFoodsMax = 30;
+
+export const createAiMealAssistantBodyRecentMealsItemMax = 300;
+
+export const createAiMealAssistantBodyRecentMealsMax = 20;
+
+export const createAiMealAssistantBodyRecentSymptomsItemMax = 300;
+
+export const createAiMealAssistantBodyRecentSymptomsMax = 20;
+
+export const createAiMealAssistantBodyImageBase64Max = 11184812;
+
+export const CreateAiMealAssistantBody = zod.object({
+  mode: zod.enum(["suggestions", "scan"]),
+  mealType: zod.enum(["breakfast", "lunch", "dinner", "snack", "any"]),
+  preferences: zod.string().max(createAiMealAssistantBodyPreferencesMax),
+  prompt: zod.string().max(createAiMealAssistantBodyPromptMax),
+  safeFoods: zod
+    .array(zod.string().max(createAiMealAssistantBodySafeFoodsItemMax))
+    .max(createAiMealAssistantBodySafeFoodsMax),
+  triggerFoods: zod
+    .array(zod.string().max(createAiMealAssistantBodyTriggerFoodsItemMax))
+    .max(createAiMealAssistantBodyTriggerFoodsMax),
+  recentMeals: zod
+    .array(zod.string().max(createAiMealAssistantBodyRecentMealsItemMax))
+    .max(createAiMealAssistantBodyRecentMealsMax),
+  recentSymptoms: zod
+    .array(zod.string().max(createAiMealAssistantBodyRecentSymptomsItemMax))
+    .max(createAiMealAssistantBodyRecentSymptomsMax),
+  imageBase64: zod
+    .string()
+    .max(createAiMealAssistantBodyImageBase64Max)
+    .optional()
+    .describe(
+      "Base64-encoded image, capped at the length of an 8 MiB decoded payload.",
+    ),
+  imageMimeType: zod.enum(["image/jpeg", "image/png", "image/webp"]).optional(),
+});
+
+export const CreateAiMealAssistantResponse = zod.object({
+  headline: zod.string(),
+  overview: zod.string(),
+  riskLevel: zod.enum(["low", "moderate", "high", "unknown"]),
+  detectedFoods: zod.array(zod.string()),
+  considerations: zod.array(zod.string()),
+  suggestions: zod.array(
+    zod.object({
+      title: zod.string(),
+      mealType: zod.enum(["breakfast", "lunch", "dinner", "snack"]),
+      description: zod.string(),
+      ingredients: zod.array(zod.string()),
+      preparation: zod.string(),
+      rationale: zod.string(),
+    }),
+  ),
+  disclaimer: zod.string(),
+});

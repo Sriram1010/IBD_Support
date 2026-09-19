@@ -5,18 +5,26 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AiMealAssistantInput,
+  AiMealAssistantResult,
+  ErrorResponse,
+  HealthStatus,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +107,90 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Generates meal suggestions or analyzes a meal, menu, or food-label image using the user's logged food and symptom context.
+ * @summary Generate personalized meal guidance
+ */
+export const getCreateAiMealAssistantUrl = () => {
+  return `/api/ai/meal-assistant`;
+};
+
+export const createAiMealAssistant = async (
+  aiMealAssistantInput: AiMealAssistantInput,
+  options?: RequestInit,
+): Promise<AiMealAssistantResult> => {
+  return customFetch<AiMealAssistantResult>(getCreateAiMealAssistantUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(aiMealAssistantInput),
+  });
+};
+
+export const getCreateAiMealAssistantMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAiMealAssistant>>,
+    TError,
+    { data: BodyType<AiMealAssistantInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createAiMealAssistant>>,
+  TError,
+  { data: BodyType<AiMealAssistantInput> },
+  TContext
+> => {
+  const mutationKey = ["createAiMealAssistant"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createAiMealAssistant>>,
+    { data: BodyType<AiMealAssistantInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createAiMealAssistant(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateAiMealAssistantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAiMealAssistant>>
+>;
+export type CreateAiMealAssistantMutationBody = BodyType<AiMealAssistantInput>;
+export type CreateAiMealAssistantMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Generate personalized meal guidance
+ */
+export const useCreateAiMealAssistant = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAiMealAssistant>>,
+    TError,
+    { data: BodyType<AiMealAssistantInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createAiMealAssistant>>,
+  TError,
+  { data: BodyType<AiMealAssistantInput> },
+  TContext
+> => {
+  return useMutation(getCreateAiMealAssistantMutationOptions(options));
+};

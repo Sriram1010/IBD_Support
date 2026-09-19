@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useState, useEffect } from "react";
+import React, { createContext, useContext, useCallback, useState, useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface MealEntry {
@@ -275,6 +275,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [fatsGoal, setFatsGoalState] = useState<number>(65);
   const [fiberGoal, setFiberGoalState] = useState<number>(25);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const menuItemsRef = useRef<MenuItem[]>([]);
+  const menuWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -315,6 +317,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setTriggers(t);
       setSymptomLogs(sym);
       setMenuItems(mn);
+      menuItemsRef.current = mn;
       setProfile(savedProfile);
       if (wg) setWaterGoalMlState(parseInt(wg, 10));
       if (sg) setSleepGoalHoursState(parseFloat(sg));
@@ -442,18 +445,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTriggers((p) => { const u = p.filter((t) => t.id !== id); saveData(STORAGE_KEYS.TRIGGERS, u); return u; });
   }, []);
 
+  const persistMenuMutation = useCallback(
+    async (mutate: (items: MenuItem[]) => MenuItem[]) => {
+      const write = menuWriteQueueRef.current.then(async () => {
+        const next = mutate(menuItemsRef.current);
+        await saveData(STORAGE_KEYS.MENU, next);
+        menuItemsRef.current = next;
+        setMenuItems(next);
+      });
+      menuWriteQueueRef.current = write.catch(() => undefined);
+      await write;
+    },
+    [],
+  );
+
   const addMenuItem = useCallback(async (item: Omit<MenuItem, "id">) => {
     const n: MenuItem = { ...item, id: generateId() };
-    setMenuItems((p) => { const u = [...p, n]; saveData(STORAGE_KEYS.MENU, u); return u; });
-  }, []);
+    await persistMenuMutation((items) => [...items, n]);
+  }, [persistMenuMutation]);
 
   const updateMenuItem = useCallback(async (id: string, item: Partial<MenuItem>) => {
-    setMenuItems((p) => { const u = p.map((m) => m.id === id ? { ...m, ...item } : m); saveData(STORAGE_KEYS.MENU, u); return u; });
-  }, []);
+    await persistMenuMutation((items) => items.map((m) => m.id === id ? { ...m, ...item } : m));
+  }, [persistMenuMutation]);
 
   const deleteMenuItem = useCallback(async (id: string) => {
-    setMenuItems((p) => { const u = p.filter((m) => m.id !== id); saveData(STORAGE_KEYS.MENU, u); return u; });
-  }, []);
+    await persistMenuMutation((items) => items.filter((m) => m.id !== id));
+  }, [persistMenuMutation]);
 
   const getWeekMenuItems = useCallback(
     (weekStart: string) => menuItems.filter((m) => m.weekStart === weekStart).sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.time.localeCompare(b.time)),

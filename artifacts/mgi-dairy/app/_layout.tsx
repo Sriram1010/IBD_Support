@@ -15,6 +15,11 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
+import { setBaseUrl } from "@workspace/api-client-react";
+
+if (process.env.EXPO_PUBLIC_DOMAIN) {
+  setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,6 +31,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="image-viewer" options={{ presentation: "fullScreenModal", headerShown: false }} />
       <Stack.Screen name="profile" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="ai-meals" options={{ presentation: "modal", headerShown: false }} />
     </Stack>
   );
 }

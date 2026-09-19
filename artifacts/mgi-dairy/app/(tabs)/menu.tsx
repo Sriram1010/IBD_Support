@@ -7,6 +7,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
+import { useRouter } from "expo-router";
 import { useApp as useAppContext } from "@/context/AppContext";
 import Colors from "@/constants/colors";
 import { SimpleTimeInput } from "@/components/WheelPicker";
@@ -85,6 +86,7 @@ export default function MenuScreen() {
   const [webCanGoBack, setWebCanGoBack] = useState(false);
   const [webCanGoFwd, setWebCanGoFwd] = useState(false);
   const webViewRef = useRef<any>(null);
+  const router = useRouter();
 
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
   const tabBarHeight = Platform.OS === "web" ? 60 : 50;
@@ -161,7 +163,18 @@ export default function MenuScreen() {
           <Text style={[styles.headerTitle, { color: colors.headerText }]}>Weekly Menu</Text>
           <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>{DAY_FULL[selectedDay]}</Text>
         </View>
-        <ProfileSettingsButton color={colors.headerText} />
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            testID="open-ai-meals-button"
+            accessibilityRole="button"
+            accessibilityLabel="Open AI meal assistant"
+            onPress={() => router.push("/ai-meals" as any)}
+            style={[styles.aiMealsButton, { backgroundColor: colors.purple }]}
+          >
+            <Feather name="cpu" size={20} color="#fff" />
+          </TouchableOpacity>
+          <ProfileSettingsButton color={colors.headerText} />
+        </View>
       </View>
 
       <View style={[styles.weekNav, { backgroundColor: colors.card, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
@@ -331,6 +344,8 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { fontSize: 28, fontWeight: "700" as const },
   headerSub: { fontSize: 14, marginTop: 2 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  aiMealsButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 8 },
   weekNavArrow: { padding: 8 },
   weekLabel: { fontSize: 13, fontWeight: "600" as const },

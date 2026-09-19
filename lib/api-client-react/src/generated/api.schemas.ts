@@ -8,3 +8,97 @@
 export interface HealthStatus {
   status: string;
 }
+
+export type AiMealAssistantInputMode =
+  (typeof AiMealAssistantInputMode)[keyof typeof AiMealAssistantInputMode];
+
+export const AiMealAssistantInputMode = {
+  suggestions: "suggestions",
+  scan: "scan",
+} as const;
+
+export type AiMealAssistantInputMealType =
+  (typeof AiMealAssistantInputMealType)[keyof typeof AiMealAssistantInputMealType];
+
+export const AiMealAssistantInputMealType = {
+  breakfast: "breakfast",
+  lunch: "lunch",
+  dinner: "dinner",
+  snack: "snack",
+  any: "any",
+} as const;
+
+export type AiMealAssistantInputImageMimeType =
+  (typeof AiMealAssistantInputImageMimeType)[keyof typeof AiMealAssistantInputImageMimeType];
+
+export const AiMealAssistantInputImageMimeType = {
+  "image/jpeg": "image/jpeg",
+  "image/png": "image/png",
+  "image/webp": "image/webp",
+} as const;
+
+export interface AiMealAssistantInput {
+  mode: AiMealAssistantInputMode;
+  mealType: AiMealAssistantInputMealType;
+  /** @maxLength 1000 */
+  preferences: string;
+  /** @maxLength 1000 */
+  prompt: string;
+  /** @maxItems 30 */
+  safeFoods: string[];
+  /** @maxItems 30 */
+  triggerFoods: string[];
+  /** @maxItems 20 */
+  recentMeals: string[];
+  /** @maxItems 20 */
+  recentSymptoms: string[];
+  /**
+   * Base64-encoded image, capped at the length of an 8 MiB decoded payload.
+   * @maxLength 11184812
+   */
+  imageBase64?: string;
+  imageMimeType?: AiMealAssistantInputImageMimeType;
+}
+
+export type AiMealSuggestionMealType =
+  (typeof AiMealSuggestionMealType)[keyof typeof AiMealSuggestionMealType];
+
+export const AiMealSuggestionMealType = {
+  breakfast: "breakfast",
+  lunch: "lunch",
+  dinner: "dinner",
+  snack: "snack",
+} as const;
+
+export interface AiMealSuggestion {
+  title: string;
+  mealType: AiMealSuggestionMealType;
+  description: string;
+  ingredients: string[];
+  preparation: string;
+  rationale: string;
+}
+
+export type AiMealAssistantResultRiskLevel =
+  (typeof AiMealAssistantResultRiskLevel)[keyof typeof AiMealAssistantResultRiskLevel];
+
+export const AiMealAssistantResultRiskLevel = {
+  low: "low",
+  moderate: "moderate",
+  high: "high",
+  unknown: "unknown",
+} as const;
+
+export interface AiMealAssistantResult {
+  headline: string;
+  overview: string;
+  riskLevel: AiMealAssistantResultRiskLevel;
+  detectedFoods: string[];
+  considerations: string[];
+  suggestions: AiMealSuggestion[];
+  disclaimer: string;
+}
+
+export interface ErrorResponse {
+  error: string;
+}
