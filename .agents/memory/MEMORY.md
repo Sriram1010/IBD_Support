@@ -1,2 +1,3 @@
 - [Externalized AI SDK runtime dependency](externalized-ai-sdk.md) — server bundles may externalize provider SDKs, requiring a direct runtime dependency in the server package.
 - [Assistant-first navigation](assistant-first-navigation.md) — keep primary tabs focused while retaining all existing health records through More.
+- [GitHub push authentication](github-push-auth.md) — connected GitHub API access does not guarantee Git CLI credentials; preserve commit identity when using the API.
