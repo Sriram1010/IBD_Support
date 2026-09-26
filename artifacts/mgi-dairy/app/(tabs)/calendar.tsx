@@ -53,9 +53,9 @@ function getMonthDays(year: number, month: number) {
   return { firstDay: new Date(year, month, 1).getDay(), daysInMonth: new Date(year, month + 1, 0).getDate() };
 }
 function bowelDotColor(color: BowelColor | undefined): string {
-  if (color === "red") return "#EF4444";
-  if (color === "yellow") return "#F97316";
-  if (color === "green") return "#10B981";
+  if (color === "red") return Colors.light.destructive;
+  if (color === "yellow") return Colors.light.warning;
+  if (color === "green") return Colors.light.success;
   return "transparent";
 }
 function addDays(dateStr: string, days: number): string {
@@ -72,17 +72,17 @@ function getMondayOfWeek(todayStr: string): string {
 }
 
 function getStoolTypeColor(bColor: BowelColor | undefined): string {
-  if (!bColor) return "#9CA3AF";
-  if (bColor === "green") return "#10B981";
-  if (bColor === "yellow") return "#F97316";
-  return "#EF4444";
+  if (!bColor) return Colors.light.placeholder;
+  if (bColor === "green") return Colors.light.success;
+  if (bColor === "yellow") return Colors.light.warning;
+  return Colors.light.destructive;
 }
 
 function getProgressColor(pct: number): string {
-  if (pct < 35) return "#EF4444";
-  if (pct < 65) return "#F97316";
-  if (pct < 85) return "#FBBF24";
-  return "#10B981";
+  if (pct < 35) return Colors.light.destructive;
+  if (pct < 65) return Colors.light.warning;
+  if (pct < 85) return Colors.light.goldText;
+  return Colors.light.success;
 }
 
 export default function CalendarScreen() {
@@ -338,7 +338,7 @@ export default function CalendarScreen() {
           if (value > 0 && weightGoalKg > 0) {
             const diff = Math.abs(value - weightGoalKg) / weightGoalKg;
             pointColor = getProgressColor(Math.max(0, 100 - diff * 200));
-          } else { pointColor = value > 0 ? "#7C5CBF" : "#9CA3AF"; }
+          } else { pointColor = value > 0 ? colors.tint : colors.placeholder; }
         }
         return { label: MON_SUN_LABELS[i], value, pointColor };
       });
@@ -363,7 +363,7 @@ export default function CalendarScreen() {
           pointColor = getStoolTypeColor(b?.color);
         } else if (trendMetric === "weight") {
           value = weightMap[d] ?? 0;
-          pointColor = value > 0 ? "#7C5CBF" : "#9CA3AF";
+          pointColor = value > 0 ? colors.tint : colors.placeholder;
         }
         return { label: String(dayNum), value, pointColor };
       });
@@ -394,7 +394,7 @@ export default function CalendarScreen() {
         } else if (trendMetric === "weight") {
           const monthWeights = weightLogs.filter((w) => w.date.startsWith(monthStr));
           value = monthWeights.length > 0 ? monthWeights.reduce((s, w) => s + w.weightKg, 0) / monthWeights.length : 0;
-          pointColor = value > 0 ? "#7C5CBF" : "#9CA3AF";
+          pointColor = value > 0 ? colors.tint : colors.placeholder;
         }
         return { label: MONTHS_SHORT[m], value, pointColor };
       });
@@ -403,10 +403,10 @@ export default function CalendarScreen() {
 
   const trendData = useMemo(() => getTrendData(), [trendMetric, trendPeriod, waterEntries, sleepLogs, bowelLogs, weightLogs, viewYear, viewMonth, waterGoalMl, sleepGoalHours, weightGoalKg]);
 
-  const metricColor = trendMetric === "water" ? "#1B8A7B"
-    : trendMetric === "sleep" ? "#C4881A"
-    : trendMetric === "stoolType" ? "#10B981"
-    : "#7C5CBF";
+  const metricColor = trendMetric === "water" ? colors.teal
+    : trendMetric === "sleep" ? colors.goldText
+    : trendMetric === "stoolType" ? colors.success
+    : colors.tint;
 
   const metricUnit = trendMetric === "water" ? "ml"
     : trendMetric === "sleep" ? "hrs"
@@ -422,16 +422,16 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
+      <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 10 }]}>
         <Text style={[styles.headerTitle, { color: colors.headerText }]}>Calendar</Text>
         <ProfileSettingsButton color={colors.headerText} />
       </View>
 
-      <View style={[styles.viewTabsRow, { backgroundColor: colors.headerBg }]}>
-        <View style={[styles.viewTabs, { backgroundColor: colors.surface }]}>
+      <View style={[styles.viewTabsRow, { backgroundColor: colors.background }]}>
+        <View style={[styles.viewTabs, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {(["monthly", "weekly", "yearly"] as ViewMode[]).map((mode) => (
-            <TouchableOpacity key={mode} style={[styles.viewTab, viewMode === mode && { backgroundColor: colors.purple }]} onPress={() => setViewMode(mode)}>
-              <Text style={[styles.viewTabText, { color: viewMode === mode ? "#fff" : colors.textSecondary }]}>{mode.charAt(0).toUpperCase() + mode.slice(1)}</Text>
+            <TouchableOpacity key={mode} style={[styles.viewTab, viewMode === mode && { backgroundColor: colors.headerBg }]} onPress={() => setViewMode(mode)}>
+              <Text style={[styles.viewTabText, { color: viewMode === mode ? colors.headerText : colors.textSecondary }]}>{mode.charAt(0).toUpperCase() + mode.slice(1)}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -448,7 +448,7 @@ export default function CalendarScreen() {
           <YearlyView year={viewYear} bowelMap={bowelMap} todayStr={todayStr} selectedDate={selectedDate} colors={colors} onYearChange={(y: number) => setViewYear(y)} onDayTap={handleDayTap} />
         )}
 
-        <TouchableOpacity style={[styles.logEntryBtn, { backgroundColor: colors.purple }]} onPress={() => openDaySheet(selectedDate)}>
+        <TouchableOpacity style={[styles.logEntryBtn, { backgroundColor: colors.leaf }]} onPress={() => openDaySheet(selectedDate)}>
           <Feather name="plus" size={18} color="#fff" />
           <Text style={styles.logEntryBtnText}>Log Entry for {selectedDate === todayStr ? "Today" : selectedDate.slice(5).replace("-", "/")}</Text>
         </TouchableOpacity>
@@ -459,11 +459,11 @@ export default function CalendarScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
             <View style={styles.chipRow}>
               {(["water", "sleep", "stoolType", "weight"] as TrendMetric[]).map((m) => {
-                const metColors: Record<TrendMetric, string> = { water: "#1B8A7B", sleep: "#C4881A", stoolType: "#10B981", weight: "#7C5CBF" };
+                const metColors: Record<TrendMetric, string> = { water: colors.teal, sleep: colors.gold, stoolType: colors.success, weight: colors.tint };
                 const active = trendMetric === m;
                 return (
                   <TouchableOpacity key={m} style={[styles.chip, { backgroundColor: active ? metColors[m] : colors.sectionBg }]} onPress={() => setTrendMetric(m)}>
-                    <Text style={[styles.chipText, { color: active ? "#fff" : colors.textSecondary }]}>{METRIC_LABELS[m]}</Text>
+                    <Text style={[styles.chipText, { color: active ? (m === "sleep" ? colors.onGold : "#fff") : colors.textSecondary }]}>{METRIC_LABELS[m]}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -472,9 +472,9 @@ export default function CalendarScreen() {
           <LineChart data={trendData} color={metricColor} unit={metricUnit} colors={colors} scrollable={trendPeriod === "monthly"} />
           {trendMetric === "stoolType" && (
             <View style={styles.legendRow}>
-              <LegendDot color="#10B981" label="Normal" />
-              <LegendDot color="#F97316" label="Moderate" />
-              <LegendDot color="#EF4444" label="Severe" />
+              <LegendDot color={colors.success} label="Normal" />
+              <LegendDot color={colors.warning} label="Moderate" />
+              <LegendDot color={colors.destructive} label="Severe" />
             </View>
           )}
         </View>
@@ -503,7 +503,7 @@ export default function CalendarScreen() {
           </Text>
 
           {selectedBowel ? (
-            <TouchableOpacity style={[styles.dailyRow, { backgroundColor: colors.sectionBg }]} onPress={() => openDaySheet(selectedDate)}>
+            <TouchableOpacity style={[styles.dailyRow, { borderBottomColor: colors.border }]} onPress={() => openDaySheet(selectedDate)}>
               <View style={[styles.bowelDot, { backgroundColor: bowelDotColor(selectedBowel.color) }]} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.dailyLabel, { color: colors.text }]}>BM — {selectedBowel.color === "green" ? "Normal" : selectedBowel.color === "yellow" ? "Moderate" : "Severe"}</Text>
@@ -519,7 +519,7 @@ export default function CalendarScreen() {
           )}
 
           {selectedMeals.length > 0 ? (
-            <TouchableOpacity style={[styles.dailyRow, { backgroundColor: colors.sectionBg }]} onPress={() => openEditSheet("meals")}>
+            <TouchableOpacity style={[styles.dailyRow, { borderBottomColor: colors.border }]} onPress={() => openEditSheet("meals")}>
               <Feather name="coffee" size={16} color={colors.tint} />
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={[styles.dailyLabel, { color: colors.text }]}>Meals — {selectedMeals.length} logged</Text>
@@ -535,8 +535,8 @@ export default function CalendarScreen() {
           )}
 
           {selectedWater > 0 ? (
-            <TouchableOpacity style={[styles.dailyRow, { backgroundColor: colors.sectionBg }]} onPress={() => openEditSheet("water")}>
-              <Feather name="droplet" size={16} color="#1B8A7B" />
+            <TouchableOpacity style={[styles.dailyRow, { borderBottomColor: colors.border }]} onPress={() => openEditSheet("water")}>
+              <Feather name="droplet" size={16} color={colors.teal} />
               <Text style={[styles.dailyLabel, { color: colors.text, marginLeft: 10, flex: 1 }]}>Water — {selectedWater} ml</Text>
               <Feather name="chevron-right" size={15} color={colors.placeholder} />
             </TouchableOpacity>
@@ -548,8 +548,8 @@ export default function CalendarScreen() {
           )}
 
           {selectedSleep ? (
-            <TouchableOpacity style={[styles.dailyRow, { backgroundColor: colors.sectionBg }]} onPress={() => openEditSheet("sleep")}>
-              <Feather name="moon" size={16} color="#C4881A" />
+            <TouchableOpacity style={[styles.dailyRow, { borderBottomColor: colors.border }]} onPress={() => openEditSheet("sleep")}>
+              <Feather name="moon" size={16} color={colors.goldText} />
               <Text style={[styles.dailyLabel, { color: colors.text, marginLeft: 10, flex: 1 }]}>Sleep — {calcSleepHours(selectedSleep.bedtime, selectedSleep.wakeTime)}</Text>
               <Feather name="chevron-right" size={15} color={colors.placeholder} />
             </TouchableOpacity>
@@ -561,8 +561,8 @@ export default function CalendarScreen() {
           )}
 
           {selectedWeight ? (
-            <TouchableOpacity style={[styles.dailyRow, { backgroundColor: colors.sectionBg }]} onPress={() => openEditSheet("weight")}>
-              <Feather name="trending-up" size={16} color="#7C5CBF" />
+            <TouchableOpacity style={[styles.dailyRow, { borderBottomColor: colors.border }]} onPress={() => openEditSheet("weight")}>
+              <Feather name="trending-up" size={16} color={colors.tint} />
               <Text style={[styles.dailyLabel, { color: colors.text, marginLeft: 10, flex: 1 }]}>Weight — {selectedWeight.toFixed(1)} kg</Text>
               <Feather name="chevron-right" size={15} color={colors.placeholder} />
             </TouchableOpacity>
@@ -615,8 +615,8 @@ export default function CalendarScreen() {
 
                   <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Stool Photos</Text>
                   <TouchableOpacity style={[styles.photoAddBtn, { backgroundColor: colors.sectionBg, borderColor: colors.border }]} onPress={handleAddPhoto}>
-                    <Feather name="camera" size={18} color={colors.gold} />
-                    <Text style={[styles.photoAddText, { color: colors.gold }]}>Add Stool Photos</Text>
+                    <Feather name="camera" size={18} color={colors.goldText} />
+                    <Text style={[styles.photoAddText, { color: colors.goldText }]}>Add Stool Photos</Text>
                   </TouchableOpacity>
                   {sheetPhotos.length > 0 && (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
@@ -830,8 +830,8 @@ export default function CalendarScreen() {
                             />
                           </View>
                           <TouchableOpacity style={[styles.photoAddBtn, { backgroundColor: colors.sectionBg, borderColor: colors.border, marginBottom: 8 }]} onPress={handleAddMealPhoto}>
-                            <Feather name="camera" size={16} color={colors.gold} />
-                            <Text style={[styles.photoAddText, { color: colors.gold }]}>Add Food Photo</Text>
+                            <Feather name="camera" size={16} color={colors.goldText} />
+                            <Text style={[styles.photoAddText, { color: colors.goldText }]}>Add Food Photo</Text>
                           </TouchableOpacity>
                           {mealFormImages.length > 0 && (
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
@@ -1063,13 +1063,13 @@ function YearlyView({ year, bowelMap, todayStr, selectedDate, colors, onYearChan
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitle: { fontSize: 28, fontWeight: "700" as const },
-  viewTabsRow: { paddingHorizontal: 16, paddingBottom: 12 },
-  viewTabs: { flexDirection: "row", borderRadius: 12, padding: 4 },
-  viewTab: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: "center" },
+  header: { paddingHorizontal: 22, paddingBottom: 15, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerTitle: { fontSize: 23, fontWeight: "700" as const, letterSpacing: -0.6 },
+  viewTabsRow: { paddingHorizontal: 20, paddingTop: 15, paddingBottom: 2 },
+  viewTabs: { flexDirection: "row", borderRadius: 11, padding: 3, borderWidth: 1 },
+  viewTab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
   viewTabText: { fontSize: 13, fontWeight: "600" as const },
-  calCard: { margin: 16, borderRadius: 16, padding: 16, shadowColor: "rgba(0,0,0,0.06)", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  calCard: { marginHorizontal: 20, marginTop: 14, marginBottom: 18, borderRadius: 13, padding: 17 },
   monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   navBtn: { padding: 8 },
   monthLabel: { fontSize: 18, fontWeight: "600" as const },
@@ -1085,31 +1085,31 @@ const styles = StyleSheet.create({
   weekDayNum: { fontSize: 16, fontWeight: "700" as const },
   weekDot: { width: 6, height: 6, borderRadius: 3, marginTop: 4 },
   yearNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  yearMonth: { marginHorizontal: 16, marginBottom: 10, borderRadius: 12, padding: 12 },
+  yearMonth: { marginHorizontal: 20, marginBottom: 8, borderRadius: 12, padding: 14 },
   yearMonthLabel: { fontSize: 12, fontWeight: "700" as const, marginBottom: 8 },
   yearGrid: { flexDirection: "row", flexWrap: "wrap" },
   yearCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center" },
   yearDayText: { fontSize: 9 },
   yearDot: { width: 6, height: 6, borderRadius: 3 },
-  logEntryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 14 },
+  logEntryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginHorizontal: 20, marginBottom: 20, padding: 12, borderRadius: 10 },
   logEntryBtnText: { color: "#fff", fontSize: 15, fontWeight: "600" as const },
-  photoStrip: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  photoStrip: { marginHorizontal: 20, marginBottom: 12, borderRadius: 12, padding: 17 },
   photoStripTitle: { fontSize: 14, fontWeight: "700" as const },
   photoThumbWrap: { marginRight: 10, alignItems: "center" },
   photoThumb: { width: 70, height: 70, borderRadius: 12 },
   photoThumbDot: { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
-  trendCard: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
-  trendTitle: { fontSize: 17, fontWeight: "700" as const, marginBottom: 12 },
+  trendCard: { marginHorizontal: 20, marginBottom: 12, borderRadius: 12, padding: 17 },
+  trendTitle: { fontSize: 17, fontWeight: "700" as const, marginBottom: 14, letterSpacing: -0.3 },
   chipRow: { flexDirection: "row", gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  chipText: { fontSize: 13, fontWeight: "600" as const },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  chipText: { fontSize: 12, fontWeight: "600" as const },
   periodRow: { flexDirection: "row", borderRadius: 10, padding: 4, marginBottom: 8 },
   periodBtn: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: "center" },
   periodBtnText: { fontSize: 12, fontWeight: "600" as const },
   legendRow: { flexDirection: "row", gap: 12, marginTop: 8, flexWrap: "wrap", justifyContent: "center" },
-  dailyLogCard: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
-  dailyRow: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, marginBottom: 8 },
-  dailyRowEmpty: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", marginBottom: 8 },
+  dailyLogCard: { marginHorizontal: 20, marginBottom: 12, borderRadius: 12, padding: 17 },
+  dailyRow: { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 2, borderBottomWidth: StyleSheet.hairlineWidth },
+  dailyRowEmpty: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 14, paddingHorizontal: 2, borderBottomWidth: StyleSheet.hairlineWidth },
   dailyLabel: { fontSize: 14, fontWeight: "500" as const },
   dailySub: { fontSize: 12, marginTop: 2 },
   dailyEmptyText: { fontSize: 13 },

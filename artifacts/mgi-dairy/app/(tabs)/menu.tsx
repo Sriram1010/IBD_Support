@@ -158,7 +158,7 @@ export default function MenuScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
+      <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 10 }]}>
         <View>
           <Text style={[styles.headerTitle, { color: colors.headerText }]}>Weekly Menu</Text>
           <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>{DAY_FULL[selectedDay]}</Text>
@@ -169,9 +169,9 @@ export default function MenuScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open AI meal assistant"
             onPress={() => router.push("/ai-meals" as any)}
-            style={[styles.aiMealsButton, { backgroundColor: colors.purple }]}
+            style={[styles.aiMealsButton, { backgroundColor: colors.gold }]}
           >
-            <Feather name="cpu" size={20} color="#fff" />
+            <Feather name="cpu" size={20} color={colors.onGold} />
           </TouchableOpacity>
           <ProfileSettingsButton color={colors.headerText} />
         </View>
@@ -193,8 +193,8 @@ export default function MenuScreen() {
         {DAY_LABELS.map((label, idx) => {
           const hasItems = weekItemsAll.some((m) => m.dayOfWeek === idx);
           return (
-            <TouchableOpacity key={idx} style={[styles.dayTab, selectedDay === idx && { borderBottomWidth: 3, borderBottomColor: colors.purple }]} onPress={() => setSelectedDay(idx)}>
-              <Text style={[styles.dayTabLabel, { color: selectedDay === idx ? colors.purple : colors.textSecondary }]}>{label}</Text>
+            <TouchableOpacity key={idx} style={[styles.dayTab, selectedDay === idx && { borderBottomWidth: 2, borderBottomColor: colors.tint }]} onPress={() => setSelectedDay(idx)}>
+              <Text style={[styles.dayTabLabel, { color: selectedDay === idx ? colors.tint : colors.textSecondary }]}>{label}</Text>
               {hasItems && <View style={[styles.dayDot, { backgroundColor: colors.teal }]} />}
             </TouchableOpacity>
           );
@@ -210,46 +210,38 @@ export default function MenuScreen() {
           </View>
         ) : (
           <View style={[styles.table, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.tableHead, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.thTime, { color: colors.textSecondary }]}>Time</Text>
-              <Text style={[styles.thRecipe, { color: colors.textSecondary }]}>Recipe</Text>
-              <Text style={[styles.thNotes, { color: colors.textSecondary }]}>Notes</Text>
-              <Text style={[styles.thLink, { color: colors.textSecondary }]}>Link</Text>
-              <View style={{ width: 32 }} />
-            </View>
             {dayItems.map((item) => (
-              <TouchableOpacity key={item.id} activeOpacity={0.8} onLongPress={() => openEdit(item.id)} style={[styles.tableRow, { borderTopColor: colors.borderLight }]}>
-                <Text style={[styles.tdTime, { color: colors.text }]}>{formatTimeDisplay(item.time)}</Text>
-                <View style={styles.tdRecipeCol}>
-                  <Text style={[styles.tdRecipe, { color: colors.text }]}>{item.recipe}</Text>
-                </View>
-                <View style={styles.tdNotesCol}>
-                  {item.notes ? <Text style={[styles.tdNotes, { color: colors.textSecondary }]} numberOfLines={2}>{item.notes}</Text> : <Text style={[styles.tdDash, { color: colors.placeholder }]}>—</Text>}
-                </View>
-                <View style={styles.tdLinkCol}>
-                  {item.links && item.links.length > 0 ? (
-                    <TouchableOpacity onPress={() => openLink(item.links![0].url)} style={[styles.linkPill, { backgroundColor: colors.teal + "20" }]}>
-                      <Feather name="link" size={12} color={colors.teal} />
-                      <Text style={[styles.linkPillText, { color: colors.teal }]} numberOfLines={1}>{item.links[0].label || "Open"}</Text>
-                    </TouchableOpacity>
-                  ) : <Text style={[styles.tdDash, { color: colors.placeholder }]}>—</Text>}
-                </View>
+              <View key={item.id} style={[styles.tableRow, { borderTopColor: colors.borderLight }]}>
+                <TouchableOpacity onPress={() => openEdit(item.id)} onLongPress={() => handleDelete(item.id)} style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+                    <Text style={[styles.tdTime, { color: colors.tint }]}>{formatTimeDisplay(item.time)}</Text>
+                    <Text style={[styles.tdRecipe, { color: colors.text, flex: 1 }]}>{item.recipe}</Text>
+                    <Feather name="chevron-right" size={15} color={colors.placeholder} />
+                  </View>
+                  {item.notes ? <Text style={[styles.tdNotes, { color: colors.textSecondary, marginTop: 7 }]} numberOfLines={2}>{item.notes}</Text> : null}
+                </TouchableOpacity>
                 <View style={styles.rowActions}>
+                  {item.links && item.links.length > 0 ? (
+                    <TouchableOpacity onPress={() => openLink(item.links![0].url)} style={[styles.linkPill, { backgroundColor: colors.sectionBg }]}>
+                      <Feather name="link" size={12} color={colors.teal} />
+                      <Text style={[styles.linkPillText, { color: colors.teal }]} numberOfLines={1}>{item.links[0].label || "Open link"}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity onPress={() => openEdit(item.id)} style={styles.rowAction}>
-                    <Feather name="edit-2" size={13} color={colors.tint} />
+                    <Feather name="edit-2" size={14} color={colors.tint} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.rowAction}>
-                    <Feather name="trash-2" size={13} color="#EF4444" />
+                    <Feather name="trash-2" size={14} color={colors.destructive} />
                   </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+              </View>
             ))}
           </View>
         )}
       </AutoHideScrollView>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colors.purple }]} onPress={openAdd}>
-        <Feather name="plus" size={26} color="#fff" />
+      <TouchableOpacity style={[styles.fab, { backgroundColor: colors.leaf, shadowColor: colors.shadow }]} onPress={openAdd} accessibilityLabel="Add meal to menu">
+        <Feather name="plus" size={26} color={colors.background} />
       </TouchableOpacity>
 
       <Modal visible={showModal} animationType="slide" transparent presentationStyle="overFullScreen">
@@ -304,7 +296,7 @@ export default function MenuScreen() {
                   <Feather name="tag" size={16} color={colors.textSecondary} style={{ marginLeft: 12 }} />
                   <TextInput style={[styles.input, { color: colors.text }]} value={formLinkLabel} onChangeText={setFormLinkLabel} placeholder="e.g. Recipe Video, Blog Post…" placeholderTextColor={colors.placeholder} />
                 </View>
-                <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.purple }]} onPress={handleSave}>
+                <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.teal }]} onPress={handleSave}>
                   <Text style={styles.saveBtnText}>{editingId ? "Save Changes" : "Add to Menu"}</Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -341,41 +333,41 @@ export default function MenuScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitle: { fontSize: 28, fontWeight: "700" as const },
-  headerSub: { fontSize: 14, marginTop: 2 },
+  header: { paddingHorizontal: 22, paddingBottom: 15, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerTitle: { fontSize: 23, fontWeight: "700" as const, letterSpacing: -0.6 },
+  headerSub: { fontSize: 12, marginTop: 3 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  aiMealsButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 8 },
+  aiMealsButton: { width: 35, height: 35, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 6 },
   weekNavArrow: { padding: 8 },
   weekLabel: { fontSize: 13, fontWeight: "600" as const },
   dayTabs: { flexDirection: "row" },
   dayTab: { flex: 1, alignItems: "center", paddingVertical: 10 },
   dayTabLabel: { fontSize: 12, fontWeight: "600" as const },
   dayDot: { width: 5, height: 5, borderRadius: 3, marginTop: 3 },
-  content: { padding: 16 },
+  content: { paddingHorizontal: 20, paddingTop: 20 },
   emptyState: { alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: "600" as const },
   emptyText: { fontSize: 14, textAlign: "center" },
-  table: { borderRadius: 12, borderWidth: 1, overflow: "hidden" },
+  table: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   tableHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1 },
   thTime: { width: 70, fontSize: 11, fontWeight: "600" as const },
   thRecipe: { flex: 1.3, fontSize: 11, fontWeight: "600" as const },
   thNotes: { flex: 1.4, fontSize: 11, fontWeight: "600" as const },
   thLink: { width: 60, fontSize: 11, fontWeight: "600" as const },
-  tableRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 0.5, gap: 4 },
-  tdTime: { width: 70, fontSize: 12 },
+  tableRow: { paddingHorizontal: 15, paddingVertical: 17, borderTopWidth: StyleSheet.hairlineWidth },
+  tdTime: { fontSize: 11, fontWeight: "700" as const },
   tdRecipeCol: { flex: 1.3 },
-  tdRecipe: { fontSize: 13, fontWeight: "500" as const },
+  tdRecipe: { fontSize: 15, fontWeight: "600" as const },
   tdNotesCol: { flex: 1.4 },
-  tdNotes: { fontSize: 12 },
+  tdNotes: { fontSize: 13 },
   tdDash: { fontSize: 12 },
   tdLinkCol: { width: 60 },
   linkPill: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, alignSelf: "flex-start" },
-  linkPillText: { fontSize: 11, fontWeight: "500" as const, maxWidth: 44 },
-  rowActions: { width: 32, alignItems: "center", gap: 6 },
-  rowAction: { padding: 2 },
-  fab: { position: "absolute", right: 20, bottom: 90, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", elevation: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 5 },
+  linkPillText: { fontSize: 11, fontWeight: "600" as const, maxWidth: 110 },
+  rowActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12, marginTop: 10 },
+  rowAction: { padding: 5 },
+  fab: { position: "absolute", right: 20, bottom: 88, width: 50, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", elevation: 3, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 5 },
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   modalCard: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "90%", paddingBottom: 40 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },

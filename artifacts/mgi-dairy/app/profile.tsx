@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -102,7 +103,7 @@ function ProfileForm({ initialProfile }: { initialProfile: UserProfile }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: insets.top + 10 }]}>
+      <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: (Platform.OS === "web" ? 67 : 0) + insets.top + 8 }]}>
         <TouchableOpacity
           testID="profile-close-button"
           accessibilityRole="button"
@@ -122,8 +123,8 @@ function ProfileForm({ initialProfile }: { initialProfile: UserProfile }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.profileIntro, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.avatar, { backgroundColor: colors.teal }]}>
-            <Text style={styles.avatarText}>{initials}</Text>
+          <View style={[styles.avatar, { backgroundColor: colors.gold }]}>
+            <Text style={[styles.avatarText, { color: colors.onGold }]}>{initials}</Text>
           </View>
           <View style={styles.introCopy}>
             <Text style={[styles.introTitle, { color: colors.text }]}>
@@ -247,26 +248,26 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { minHeight: 66, paddingHorizontal: 16, paddingBottom: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitle: { fontSize: 20, fontWeight: "700" as const },
+  header: { minHeight: 58, paddingHorizontal: 16, paddingBottom: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerTitle: { fontSize: 18, fontWeight: "700" as const, letterSpacing: -0.3 },
   iconButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center" },
   headerSpacer: { width: 42 },
-  profileIntro: { borderRadius: 18, borderWidth: 1, padding: 18, flexDirection: "row", alignItems: "center", marginBottom: 24 },
-  avatar: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: "#fff", fontSize: 20, fontWeight: "700" as const },
+  profileIntro: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, flexDirection: "row", alignItems: "center", marginBottom: 28 },
+  avatar: { width: 50, height: 50, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 19, fontWeight: "700" as const },
   introCopy: { flex: 1, marginLeft: 14 },
-  introTitle: { fontSize: 18, fontWeight: "700" as const },
+  introTitle: { fontSize: 17, fontWeight: "700" as const },
   introSubtitle: { fontSize: 13, marginTop: 4 },
-  sectionTitle: { fontSize: 16, fontWeight: "700" as const, marginBottom: 10 },
-  sectionCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 22 },
+  sectionTitle: { fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.9, textTransform: "uppercase", marginBottom: 10, marginLeft: 3 },
+  sectionCard: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 17, marginBottom: 25 },
   field: { marginBottom: 14 },
   fieldRow: { flexDirection: "row", gap: 10 },
   halfField: { flex: 1 },
   fieldLabel: { fontSize: 12, fontWeight: "600" as const, marginBottom: 6 },
-  input: { minHeight: 46, borderRadius: 11, borderWidth: 1, paddingHorizontal: 12, fontSize: 15 },
+  input: { minHeight: 45, borderRadius: 9, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, fontSize: 15 },
   passwordStatus: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
   passwordStatusText: { fontSize: 13 },
   helperText: { fontSize: 12, lineHeight: 18, marginTop: -2 },
-  saveButton: { minHeight: 52, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  saveButton: { minHeight: 50, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 2 },
   saveButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" as const },
 });

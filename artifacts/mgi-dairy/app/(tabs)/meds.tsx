@@ -93,22 +93,22 @@ export default function MedsScreen() {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
+        <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 10 }]}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.headerText }]}>Medications</Text>
             <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Daily meds & supplements</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
-              <Feather name="plus" size={18} color="#fff" />
+              <Feather name="plus" size={18} color={colors.onGold} />
             </TouchableOpacity>
             <ProfileSettingsButton color={colors.headerText} />
           </View>
         </View>
 
-        <View style={[styles.banner, { backgroundColor: colors.teal }]}>
-          <Feather name="package" size={16} color="#fff" />
-          <Text style={styles.bannerText}>{sorted.length} medication{sorted.length !== 1 ? "s" : ""} tracked</Text>
+        <View style={[styles.banner, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+          <Feather name="package" size={15} color={colors.goldText} />
+          <Text style={[styles.bannerText, { color: colors.textSecondary }]}>{sorted.length} medication{sorted.length !== 1 ? "s" : ""} tracked</Text>
         </View>
 
         <AutoHideScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
@@ -118,8 +118,8 @@ export default function MedsScreen() {
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No medications added</Text>
               <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Add your daily medications and supplements with reminders.</Text>
               <TouchableOpacity style={[styles.emptyAddBtn, { backgroundColor: colors.gold }]} onPress={openAdd}>
-                <Feather name="plus" size={16} color="#fff" />
-                <Text style={styles.emptyAddText}>Add First Medication</Text>
+                <Feather name="plus" size={16} color={colors.onGold} />
+                <Text style={[styles.emptyAddText, { color: colors.onGold }]}>Add First Medication</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -127,9 +127,9 @@ export default function MedsScreen() {
               const days: string[] = med.reminderDays ?? ALL_DAYS;
               const isAllDays = days.length === 7;
               return (
-                <TouchableOpacity key={med.id} style={[styles.medCard, { backgroundColor: colors.card }]} onPress={() => openEdit(med)} onLongPress={() => handleDelete(med.id, med.name)}>
+                <TouchableOpacity key={med.id} style={[styles.medCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => openEdit(med)} onLongPress={() => handleDelete(med.id, med.name)}>
                   <View style={[styles.medIcon, { backgroundColor: colors.sectionBg }]}>
-                    <Feather name="package" size={20} color={colors.gold} />
+                    <Feather name="package" size={20} color={colors.goldText} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.medName, { color: colors.text }]}>{med.name}</Text>
@@ -137,12 +137,12 @@ export default function MedsScreen() {
                     <View style={styles.dayChipsRow}>
                       {isAllDays ? (
                         <View style={[styles.dayChip, { backgroundColor: colors.sectionBg }]}>
-                          <Text style={[styles.dayChipText, { color: colors.gold }]}>Daily</Text>
+                          <Text style={[styles.dayChipText, { color: colors.goldText }]}>Daily</Text>
                         </View>
                       ) : (
                         DAYS.map((d) => (
                           <View key={d.key} style={[styles.dayChip, days.includes(d.key) ? { backgroundColor: colors.gold } : { backgroundColor: colors.sectionBg }]}>
-                            <Text style={[styles.dayChipText, { color: days.includes(d.key) ? "#fff" : colors.placeholder }]}>{d.label}</Text>
+                          <Text style={[styles.dayChipText, { color: days.includes(d.key) ? colors.onGold : colors.placeholder }]}>{d.label}</Text>
                           </View>
                         ))
                       )}
@@ -151,16 +151,16 @@ export default function MedsScreen() {
                   <View style={styles.medRight}>
                     {med.reminderTime ? (
                       <View style={[styles.reminderChip, { backgroundColor: colors.sectionBg }]}>
-                        <Feather name="bell" size={11} color={colors.gold} />
-                        <Text style={[styles.reminderTime, { color: colors.gold }]}>{fmt12(med.reminderTime)}</Text>
+                        <Feather name="bell" size={11} color={colors.goldText} />
+                        <Text style={[styles.reminderTime, { color: colors.goldText }]}>{fmt12(med.reminderTime)}</Text>
                       </View>
                     ) : null}
                     <View style={styles.medActions}>
                       <TouchableOpacity onPress={() => openEdit(med)} style={[styles.editBtn, { backgroundColor: colors.sectionBg }]}>
                         <Feather name="edit-2" size={13} color={colors.tint} />
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDelete(med.id, med.name)} style={[styles.deleteBtn, { backgroundColor: "#FEE2E2" }]}>
-                        <Feather name="trash-2" size={13} color="#EF4444" />
+                      <TouchableOpacity onPress={() => handleDelete(med.id, med.name)} style={[styles.deleteBtn, { backgroundColor: colors.sectionBg }]}>
+                        <Feather name="trash-2" size={13} color={colors.destructive} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -200,19 +200,19 @@ export default function MedsScreen() {
                         style={[styles.weekdayBtn, reminderDays.includes(d.key) ? { backgroundColor: colors.gold } : { backgroundColor: colors.sectionBg, borderColor: colors.border, borderWidth: 1 }]}
                         onPress={() => toggleDay(d.key)}
                       >
-                        <Text style={[styles.weekdayBtnText, { color: reminderDays.includes(d.key) ? "#fff" : colors.textSecondary }]}>{d.label}</Text>
+                        <Text style={[styles.weekdayBtnText, { color: reminderDays.includes(d.key) ? colors.onGold : colors.textSecondary }]}>{d.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                   <View style={styles.weekdayShortcuts}>
                     <TouchableOpacity onPress={() => setReminderDays(ALL_DAYS)} style={[styles.shortcutChip, { backgroundColor: colors.sectionBg }]}>
-                      <Text style={[styles.shortcutText, { color: colors.gold }]}>All days</Text>
+                      <Text style={[styles.shortcutText, { color: colors.goldText }]}>All days</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setReminderDays(["Mon","Tue","Wed","Thu","Fri"])} style={[styles.shortcutChip, { backgroundColor: colors.sectionBg }]}>
-                      <Text style={[styles.shortcutText, { color: colors.gold }]}>Weekdays</Text>
+                      <Text style={[styles.shortcutText, { color: colors.goldText }]}>Weekdays</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setReminderDays(["Sat","Sun"])} style={[styles.shortcutChip, { backgroundColor: colors.sectionBg }]}>
-                      <Text style={[styles.shortcutText, { color: colors.gold }]}>Weekends</Text>
+                      <Text style={[styles.shortcutText, { color: colors.goldText }]}>Weekends</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -220,7 +220,7 @@ export default function MedsScreen() {
                   <SimpleTimeInput value={reminderTime} onChange={setReminderTime} colors={colors} />
 
                   <View style={[styles.alarmNote, { backgroundColor: colors.sectionBg, marginTop: 12 }]}>
-                    <Feather name="info" size={14} color={colors.gold} />
+                    <Feather name="info" size={14} color={colors.goldText} />
                     <Text style={[styles.alarmNoteText, { color: colors.textSecondary }]}>Enable notifications in device settings to receive daily reminders.</Text>
                   </View>
 
@@ -229,7 +229,7 @@ export default function MedsScreen() {
                       <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSave}>
-                      <Text style={styles.saveText}>Save</Text>
+                      <Text style={[styles.saveText, { color: colors.onGold }]}>Save</Text>
                     </TouchableOpacity>
                   </View>
                 </ScrollView>
@@ -244,20 +244,20 @@ export default function MedsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 14, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
-  headerTitle: { fontSize: 28, fontWeight: "700" as const },
-  headerSub: { fontSize: 13, marginTop: 2 },
+  header: { paddingHorizontal: 22, paddingBottom: 14, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
+  headerTitle: { fontSize: 23, fontWeight: "700" as const, letterSpacing: -0.6 },
+  headerSub: { fontSize: 12, marginTop: 3 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   headerAddBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  banner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
+  banner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 22, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   bannerText: { color: "#fff", fontSize: 13, fontWeight: "600" as const },
   emptyContainer: { alignItems: "center", paddingTop: 80, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: "600" as const },
   emptySub: { fontSize: 14, textAlign: "center", paddingHorizontal: 40 },
   emptyAddBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24, marginTop: 8 },
   emptyAddText: { color: "#fff", fontSize: 14, fontWeight: "600" as const },
-  medCard: { flexDirection: "row", alignItems: "flex-start", borderRadius: 14, padding: 14, marginBottom: 10, shadowColor: "rgba(0,0,0,0.05)", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 1, gap: 12 },
-  medIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  medCard: { flexDirection: "row", alignItems: "flex-start", borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 15, marginBottom: 9, gap: 12 },
+  medIcon: { width: 38, height: 38, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   medName: { fontSize: 15, fontWeight: "600" as const },
   medNotes: { fontSize: 13, marginTop: 2 },
   dayChipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 6 },

@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
 import { useApp as useAppContext } from "@/context/AppContext";
@@ -29,6 +29,7 @@ export default function AiMealsScreen() {
   const isDark = useColorScheme() === "dark";
   const colors = Colors[isDark ? "dark" : "light"];
   const router = useRouter();
+  const isGuideTab = usePathname() === "/guide";
 
   const {
     foodTriggers, meals, symptomLogs, addMenuItem,
@@ -40,6 +41,10 @@ export default function AiMealsScreen() {
   const [preferences, setPreferences] = useState("");
   const [prompt, setPrompt] = useState("");
   const [gutState, setGutState] = useState<AiMealAssistantInputGutState>("unknown");
+  const [shortcut, setShortcut] = useState<"check" | "reaction" | "ideas">("ideas");
+  const [reactionOutcome, setReactionOutcome] = useState<"worked_well" | "mixed" | "did_not_work" | null>(null);
+  const [reactionNotes, setReactionNotes] = useState("");
+  const [reactionSaved, setReactionSaved] = useState(false);
 
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
@@ -238,6 +243,23 @@ export default function AiMealsScreen() {
     }
   };
 
+  const handleSaveReaction = async () => {
+    const latestMeal = meals[meals.length - 1];
+    if (!latestMeal || !reactionOutcome) return;
+    try {
+      await addAiLearningEvent({
+        date: new Date().toISOString().split("T")[0],
+        mealLabel: latestMeal.foodDetails,
+        outcome: reactionOutcome,
+        gutState,
+        notes: reactionNotes.trim(),
+      });
+      setReactionSaved(true);
+    } catch {
+      Alert.alert("Storage Error", "Could not save your reaction. Please try again.");
+    }
+  };
+
   const getActionColors = (action: string) => {
     switch (action) {
       case "eat": return { bg: colors.success + "20", text: colors.success };
@@ -270,23 +292,25 @@ export default function AiMealsScreen() {
   if (!aiConsentGiven) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
-        <View style={[styles.header, { backgroundColor: colors.headerBg }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-            <Feather name="x" size={24} color={colors.headerText} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.headerText }]}>Food Guide</Text>
+        <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.borderLight }]}>
+          {isGuideTab ? <View style={styles.headerBtn} /> : (
+            <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+              <Feather name="x" size={22} color={colors.text} />
+            </TouchableOpacity>
+          )}
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Food Guide</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad, gap: 24 }]}>
-          <View style={styles.consentIconContainer}>
-            <Feather name="cpu" size={48} color={colors.purple} />
+          <View style={[styles.consentIconContainer, { backgroundColor: colors.tealLight }]}>
+            <Feather name="heart" size={34} color={colors.teal} />
           </View>
 
-          <Text style={[styles.consentTitle, { color: colors.text }]}>Privacy & Consent</Text>
+          <Text style={[styles.consentTitle, { color: colors.text }]}>A thoughtful guide,{"\n"}on your terms.</Text>
 
           <Text style={[styles.consentDesc, { color: colors.textSecondary }]}>
-            The Food Guide uses Google Gemini to analyze your meals and provide personalized guidance based on your gut health.
+              Before we begin: Food Guide uses Google Gemini to analyze meals and offer personalized gut-health guidance. You decide when to share.
           </Text>
 
           <View style={[styles.consentBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -328,7 +352,7 @@ export default function AiMealsScreen() {
               }
             }}
           >
-            <Text style={styles.primaryBtnText}>I Understand and Consent</Text>
+            <Text style={[styles.primaryBtnText, { color: colors.background }]}>I Understand and Consent</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -338,15 +362,15 @@ export default function AiMealsScreen() {
   // -------------------------------------------------------------
   // MAIN FLOW
   // -------------------------------------------------------------
-  const flowActiveStep = result ? 3 : 1; // 1=Capture/Connect, 3=Guide/Learn
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
-      <View style={[styles.header, { backgroundColor: colors.headerBg }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Feather name="x" size={24} color={colors.headerText} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.headerText }]}>Food Guide</Text>
+      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.borderLight }]}>
+        {isGuideTab ? <View style={styles.headerBtn} /> : (
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+            <Feather name="arrow-left" size={21} color={colors.text} />
+          </TouchableOpacity>
+        )}
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Food Guide <Text style={{ color: colors.teal }}>·</Text></Text>
         <TouchableOpacity
           onPress={() => {
             Alert.alert("AI Data Controls", "Manage your AI consent and learning data.", [
@@ -381,175 +405,165 @@ export default function AiMealsScreen() {
           }}
           style={styles.headerBtn}
         >
-          <Feather name="shield" size={20} color={colors.headerTextSecondary} />
+          <Feather name="shield" size={20} color={colors.teal} />
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.flowStrip, { backgroundColor: colors.surfaceElevated, borderBottomColor: colors.borderLight }]}>
-        <View style={styles.flowStripInner}>
-          <View style={styles.flowStep}>
-            <Text style={[styles.flowStepText, flowActiveStep === 1 ? { color: colors.purple, fontWeight: "700" } : { color: colors.textSecondary }]}>Capture</Text>
-          </View>
-          <Feather name="chevron-right" size={14} color={colors.border} />
-          <View style={styles.flowStep}>
-            <Text style={[styles.flowStepText, flowActiveStep === 1 ? { color: colors.purple, fontWeight: "700" } : { color: colors.textSecondary }]}>Connect</Text>
-          </View>
-          <Feather name="chevron-right" size={14} color={colors.border} />
-          <View style={styles.flowStep}>
-            <Text style={[styles.flowStepText, flowActiveStep === 3 ? { color: colors.purple, fontWeight: "700" } : { color: colors.textSecondary }]}>Guide</Text>
-          </View>
-          <Feather name="chevron-right" size={14} color={colors.border} />
-          <View style={styles.flowStep}>
-            <Text style={[styles.flowStepText, flowActiveStep === 3 ? { color: colors.purple, fontWeight: "700" } : { color: colors.textSecondary }]}>Learn</Text>
-          </View>
-        </View>
-      </View>
-
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <AutoHideScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
+        <AutoHideScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad + 24 }]}>
 
           {/* CAPTURE & CONNECT STAGE */}
           {!result && (
             <View style={styles.stageContainer}>
-              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>1. Capture</Text>
-
-                <View style={[styles.modeSelector, { backgroundColor: colors.borderLight }]}>
-                  <TouchableOpacity
-                    style={[styles.modeBtn, mode === "suggestions" && { backgroundColor: colors.card, elevation: 2 }]}
-                    onPress={() => setMode("suggestions")}
-                  >
-                    <Feather name="list" size={14} color={mode === "suggestions" ? colors.purple : colors.textSecondary} />
-                    <Text style={[styles.modeText, { color: mode === "suggestions" ? colors.purple : colors.textSecondary }]}>Ideas</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modeBtn, mode === "scan" && { backgroundColor: colors.card, elevation: 2 }]}
-                    onPress={() => setMode("scan")}
-                  >
-                    <Feather name="camera" size={14} color={mode === "scan" ? colors.purple : colors.textSecondary} />
-                    <Text style={[styles.modeText, { color: mode === "scan" ? colors.purple : colors.textSecondary }]}>Scan</Text>
-                  </TouchableOpacity>
+              <View style={styles.hero}>
+                <View style={[styles.heroMark, { backgroundColor: colors.gold + "25" }]}>
+                  <Feather name="heart" size={18} color={colors.goldText} />
                 </View>
+                <Text style={[styles.eyebrow, { color: colors.teal }]}>YOUR FOOD COMPANION</Text>
+                <Text style={[styles.heroTitle, { color: colors.text }]}>A little clarity{"\n"}for your next bite.</Text>
+                <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>Ask about a food, scan a plate, or find an idea shaped by what you’ve learned.</Text>
+              </View>
 
-                {mode === "scan" && (
-                  <View style={styles.scanSection}>
-                    {imageUri ? (
-                      <View style={styles.imagePreviewContainer}>
-                        <Image source={{ uri: imageUri }} style={[styles.imagePreview, { borderColor: colors.border }]} />
-                        <TouchableOpacity style={[styles.removeImageBtn, { backgroundColor: colors.destructive }]} onPress={() => { setImageUri(null); setImageBase64(null); setImageMime(null); }}>
-                          <Feather name="trash-2" size={16} color="#fff" />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <View style={styles.photoActionRow}>
-                        <TouchableOpacity style={[styles.photoActionBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]} onPress={() => pickImage(true)}>
-                          <Feather name="camera" size={24} color={colors.purple} />
-                          <Text style={[styles.photoActionText, { color: colors.text }]}>Take Photo</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.photoActionBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]} onPress={() => pickImage(false)}>
-                          <Feather name="image" size={24} color={colors.purple} />
-                          <Text style={[styles.photoActionText, { color: colors.text }]}>Gallery</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
+              <View style={styles.shortcutRow}>
+                {([
+                  { key: "check", title: "Check food", icon: "search" },
+                  { key: "reaction", title: "Log reaction", icon: "activity" },
+                  { key: "ideas", title: "Recipe ideas", icon: "book-open" },
+                ] as const).map((item) => (
+                  <TouchableOpacity
+                    key={item.key}
+                    testID={`food-guide-${item.key}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: shortcut === item.key }}
+                    style={[styles.shortcut, { backgroundColor: shortcut === item.key ? colors.gold + "29" : colors.card, borderColor: shortcut === item.key ? colors.gold : colors.border }]}
+                    onPress={() => { setShortcut(item.key); if (item.key === "check") setMode("scan"); if (item.key === "ideas") setMode("suggestions"); }}
+                  >
+                    <Feather name={item.icon} size={15} color={shortcut === item.key ? colors.purple : colors.textSecondary} />
+                    <Text style={[styles.shortcutText, { color: colors.text }]}>{item.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {shortcut === "reaction" ? (
+                <View style={[styles.composer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={styles.composerHeading}>
+                    <View style={[styles.smallIcon, { backgroundColor: colors.tealLight }]}><Feather name="activity" size={19} color={colors.teal} /></View>
+                    <View style={{ flex: 1 }}><Text style={[styles.composerTitle, { color: colors.text }]}>How did it sit?</Text><Text style={[styles.composerHint, { color: colors.textSecondary }]}>A private note for your future guidance</Text></View>
                   </View>
-                )}
-
-                <Text style={[styles.label, { color: colors.textSecondary, marginTop: mode === "scan" ? 8 : 0 }]}>Meal Type</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
-                  {(["any", "breakfast", "lunch", "dinner", "snack"] as AiMealAssistantInputMealType[]).map((mt) => (
-                    <TouchableOpacity
-                      key={mt}
-                      onPress={() => setMealType(mt)}
-                      style={[styles.chip, { backgroundColor: mealType === mt ? colors.purple : colors.inputBg }]}
-                    >
-                      <Text style={[styles.chipText, { color: mealType === mt ? "#fff" : colors.text }]}>
-                        {mt.charAt(0).toUpperCase() + mt.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-
-                <Text style={[styles.label, { color: colors.textSecondary, marginTop: 16 }]}>Dietary preferences (optional)</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, minHeight: 60 }]}
-                  placeholder="e.g. vegetarian, dairy-free"
-                  placeholderTextColor={colors.placeholder}
-                  value={preferences}
-                  onChangeText={setPreferences}
-                />
-
-                <Text style={[styles.label, { color: colors.textSecondary, marginTop: 16 }]}>
-                  {mode === "suggestions" ? "What are you craving?" : "Additional Context (Optional)"}
-                </Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
-                  placeholder={mode === "suggestions" ? "e.g. Something warm, high protein..." : "e.g. This is a brand of crackers..."}
-                  placeholderTextColor={colors.placeholder}
-                  value={prompt}
-                  onChangeText={setPrompt}
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
-
-              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 16 }]}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>2. Connect</Text>
-                <Text style={[styles.label, { color: colors.textSecondary, marginTop: 4 }]}>How is your gut feeling today?</Text>
-
-                <View style={styles.gutStateGrid}>
-                  {(["steady", "recovering", "sensitive", "flare", "unknown"] as AiMealAssistantInputGutState[]).map((st) => (
-                    <TouchableOpacity
-                      key={st}
-                      onPress={() => setGutState(st)}
-                      style={[
-                        styles.gutStateChip,
-                        { backgroundColor: colors.inputBg, borderColor: colors.borderLight },
-                        gutState === st && { backgroundColor: colors.teal + "15", borderColor: colors.teal }
-                      ]}
-                    >
-                      <Text style={[styles.gutStateText, { color: gutState === st ? colors.teal : colors.textSecondary, fontWeight: gutState === st ? "600" : "500" }]}>
-                        {st.charAt(0).toUpperCase() + st.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {meals.length === 0 ? (
+                    <View style={[styles.inlineNotice, { backgroundColor: colors.inputBg }]}>
+                      <Feather name="coffee" size={20} color={colors.teal} />
+                      <Text style={[styles.inlineNoticeText, { color: colors.textSecondary }]}>No meals logged yet. Add a meal in your diary first, or check a food here.</Text>
+                    </View>
+                  ) : reactionSaved ? (
+                    <View style={[styles.inlineNotice, { backgroundColor: colors.tealLight }]}>
+                      <Feather name="check-circle" size={20} color={colors.teal} />
+                      <Text style={[styles.inlineNoticeText, { color: colors.text }]}>Reaction saved on this device.</Text>
+                      <TouchableOpacity onPress={() => { setReactionSaved(false); setReactionOutcome(null); setReactionNotes(""); }} accessibilityLabel="Log another reaction"><Feather name="plus" size={20} color={colors.teal} /></TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={[styles.fieldCaption, { color: colors.textSecondary }]}>MOST RECENT MEAL</Text>
+                      <Text style={[styles.recentMeal, { color: colors.text }]} numberOfLines={2}>{meals[meals.length - 1].foodDetails}</Text>
+                      <View style={styles.feedbackChips}>
+                        {([
+                          { key: "worked_well", label: "Worked well", color: colors.success },
+                          { key: "mixed", label: "Mixed", color: colors.warning },
+                          { key: "did_not_work", label: "Did not work", color: colors.destructive },
+                        ] as const).map((item) => (
+                          <TouchableOpacity key={item.key} onPress={() => setReactionOutcome(item.key)} style={[styles.feedbackChip, { borderColor: reactionOutcome === item.key ? item.color : colors.border, backgroundColor: reactionOutcome === item.key ? item.color + "19" : colors.inputBg }]}>
+                            <Text style={[styles.feedbackChipText, { color: reactionOutcome === item.key ? item.color : colors.textSecondary }]}>{item.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <TextInput style={[styles.compactInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, marginTop: 14 }]} placeholder="Private notes (optional) · stays on this device" placeholderTextColor={colors.placeholder} value={reactionNotes} onChangeText={setReactionNotes} multiline />
+                      <TouchableOpacity onPress={handleSaveReaction} disabled={!reactionOutcome} style={[styles.primaryBtn, { backgroundColor: colors.purple, marginTop: 16, opacity: reactionOutcome ? 1 : 0.45 }]}><Text style={[styles.primaryBtnText, { color: colors.background }]}>Save reaction</Text><Feather name="arrow-right" size={17} color={colors.background} /></TouchableOpacity>
+                    </>
+                  )}
                 </View>
-
-                <View style={styles.connectionNote}>
-                  <Feather name="refresh-cw" size={14} color={colors.textSecondary} />
-                  <Text style={[styles.connectionNoteText, { color: colors.textSecondary }]}>
-                    Connecting {aiLearningEvents.length} learning events and recent symptom check-ins.
-                  </Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: colors.purple, marginTop: 24 }, createAssistant.isPending && { opacity: 0.7 }]}
-                onPress={handleGenerate}
-                disabled={createAssistant.isPending}
-              >
-                {createAssistant.isPending ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Feather name="cpu" size={20} color="#fff" />
-                    <Text style={styles.primaryBtnText}>{mode === "suggestions" ? "Generate Guide" : "Analyze Food"}</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              ) : (
+                <>
+                  <View style={[styles.composer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={styles.composerHeading}>
+                      <View style={[styles.smallIcon, { backgroundColor: colors.gold + "29" }]}><Feather name={mode === "scan" ? "camera" : "message-circle"} size={20} color={colors.purple} /></View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.composerTitle, { color: colors.text }]}>{mode === "scan" ? "Check a food" : "What sounds good?"}</Text>
+                        <Text style={[styles.composerHint, { color: colors.textSecondary }]}>{mode === "scan" ? "Start with a photo of your food" : "Tell me what you’re looking for"}</Text>
+                      </View>
+                    </View>
+                    {mode === "scan" && (
+                      imageUri ? (
+                        <View style={styles.imagePreviewContainer}>
+                          <Image source={{ uri: imageUri }} style={[styles.imagePreview, { borderColor: colors.border }]} />
+                          <TouchableOpacity accessibilityLabel="Remove photo" style={[styles.removeImageBtn, { backgroundColor: colors.destructive }]} onPress={() => { setImageUri(null); setImageBase64(null); setImageMime(null); }}><Feather name="x" size={19} color={colors.background} /></TouchableOpacity>
+                        </View>
+                      ) : (
+                        <View style={styles.photoActionRow}>
+                          <TouchableOpacity style={[styles.photoActionBtn, { backgroundColor: colors.gold + "20", borderColor: colors.gold + "80" }]} onPress={() => pickImage(true)}><Feather name="camera" size={19} color={colors.purple} /><Text style={[styles.photoActionText, { color: colors.text }]}>Camera</Text></TouchableOpacity>
+                          <TouchableOpacity style={[styles.photoActionBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]} onPress={() => pickImage(false)}><Feather name="image" size={19} color={colors.purple} /><Text style={[styles.photoActionText, { color: colors.text }]}>Library</Text></TouchableOpacity>
+                        </View>
+                      )
+                    )}
+                    <TextInput
+                      style={[styles.composerInput, { color: colors.text }]}
+                      placeholder={mode === "scan" ? "Anything I should know about this food? (optional)" : "e.g. A comforting lunch without dairy..."}
+                      placeholderTextColor={colors.placeholder}
+                      value={prompt}
+                      onChangeText={setPrompt}
+                      multiline
+                      numberOfLines={3}
+                    />
+                    <View style={[styles.composerFooter, { borderTopColor: colors.borderLight }]}>
+                      <View style={styles.composerTools}>
+                        <TouchableOpacity accessibilityLabel="Take food photo" onPress={() => pickImage(true)} style={[styles.toolBtn, { backgroundColor: colors.gold + "31" }]}><Feather name="camera" size={18} color={colors.purple} /></TouchableOpacity>
+                        <TouchableOpacity accessibilityLabel="Choose food photo" onPress={() => pickImage(false)} style={[styles.toolBtn, { backgroundColor: colors.inputBg }]}><Feather name="image" size={18} color={colors.teal} /></TouchableOpacity>
+                        <Text style={[styles.composerFootnote, { color: colors.textSecondary }]}>{mode === "scan" ? "Photo + context" : "Add a photo"}</Text>
+                      </View>
+                      <TouchableOpacity testID="food-guide-submit" accessibilityLabel={mode === "scan" ? "Analyze food" : "Get recipe ideas"} disabled={createAssistant.isPending} onPress={handleGenerate} style={[styles.sendBtn, { backgroundColor: colors.purple, opacity: createAssistant.isPending ? 0.55 : 1 }]}>
+                        {createAssistant.isPending ? <ActivityIndicator size="small" color={colors.background} /> : <Feather name="arrow-up" size={21} color={colors.background} />}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={[styles.contextPanel, { backgroundColor: colors.surfaceElevated, borderColor: colors.borderLight }]}>
+                    <View style={styles.contextHeading}><Feather name="sliders" size={16} color={colors.teal} /><Text style={[styles.contextHeadingText, { color: colors.text }]}>Make it yours</Text></View>
+                    <Text style={[styles.fieldCaption, { color: colors.textSecondary }]}>HOW IS YOUR GUT TODAY?</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+                      {(["unknown", "steady", "recovering", "sensitive", "flare"] as AiMealAssistantInputGutState[]).map((st) => (
+                        <TouchableOpacity key={st} onPress={() => setGutState(st)} style={[styles.gutStateChip, { backgroundColor: gutState === st ? colors.tealLight : colors.card, borderColor: gutState === st ? colors.teal : colors.border }]}>
+                          <Text style={[styles.gutStateText, { color: gutState === st ? colors.teal : colors.textSecondary }]}>{st === "unknown" ? "Not sure" : st.charAt(0).toUpperCase() + st.slice(1)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    <Text style={[styles.fieldCaption, { color: colors.textSecondary, marginTop: 18 }]}>MEAL TYPE</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+                      {(["any", "breakfast", "lunch", "dinner", "snack"] as AiMealAssistantInputMealType[]).map((mt) => (
+                        <TouchableOpacity key={mt} onPress={() => setMealType(mt)} style={[styles.chip, { backgroundColor: mealType === mt ? colors.purple : colors.card, borderColor: mealType === mt ? colors.purple : colors.border }]}>
+                          <Text style={[styles.chipText, { color: mealType === mt ? colors.background : colors.textSecondary }]}>{mt === "any" ? "Any time" : mt.charAt(0).toUpperCase() + mt.slice(1)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    <TextInput style={[styles.compactInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border, marginTop: 18 }]} placeholder="Dietary preferences (optional)" placeholderTextColor={colors.placeholder} value={preferences} onChangeText={setPreferences} />
+                    <View style={[styles.connectionNote, { borderTopColor: colors.border }]}>
+                      <Feather name="lock" size={13} color={colors.teal} />
+                      <Text style={[styles.connectionNoteText, { color: colors.textSecondary }]}>Using {foodTriggers.filter(f => f.category === "safe").length} safe foods · {foodTriggers.filter(f => f.category === "trigger" || f.category === "flareup").length} triggers · {Math.min(symptomLogs.length, 5)} check-ins · {Math.min(aiLearningEvents.length, 10)} outcomes</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>Gemini receives your prompt, chosen photo, food names, recent meal names, numeric symptoms, urgent flags and outcome labels. Raw symptom and feedback notes stay on this device. General guidance only, not medical advice.</Text>
+                </>
+              )}
             </View>
           )}
 
           {/* GUIDE & LEARN STAGE */}
           {result && (
             <View style={styles.stageContainer}>
-              <TouchableOpacity style={styles.resetBtn} onPress={() => setResult(null)}>
+              <TouchableOpacity style={[styles.resetBtn, { backgroundColor: colors.gold + "26" }]} onPress={() => setResult(null)}>
                 <Feather name="arrow-left" size={16} color={colors.purple} />
-                <Text style={[styles.resetBtnText, { color: colors.purple }]}>New Analysis</Text>
+                <Text style={[styles.resetBtnText, { color: colors.purple }]}>Ask something else</Text>
               </TouchableOpacity>
 
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, result.guidanceAction === "seek_care" && { borderColor: colors.destructive, backgroundColor: colors.destructive + "10" }]}>
-                <Text style={[styles.sectionTitle, { color: colors.text }, result.guidanceAction === "seek_care" && { color: colors.destructive }]}>3. Guide</Text>
+                <View style={styles.resultTopline}><View style={[styles.signalDot, { backgroundColor: getActionColors(result.guidanceAction).text }]} /><Text style={[styles.eyebrow, { color: result.guidanceAction === "seek_care" ? colors.destructive : colors.teal }]}>{result.guidanceAction === "seek_care" ? "IMPORTANT SAFETY GUIDANCE" : "YOUR FOOD GUIDE"}</Text></View>
 
                 <Text style={[styles.resultHeadline, { color: colors.text }, result.guidanceAction === "seek_care" && { color: colors.destructive }]}>{result.headline}</Text>
                 <Text style={[styles.resultOverview, { color: colors.textSecondary }]}>{result.overview}</Text>
@@ -557,13 +571,13 @@ export default function AiMealsScreen() {
                 <View style={styles.resultBadges}>
                   <View style={[styles.badge, { backgroundColor: getActionColors(result.guidanceAction).bg }]}>
                     <Text style={[styles.badgeText, { color: getActionColors(result.guidanceAction).text }]}>
-                      Action: {result.guidanceAction.toUpperCase().replace("_", " ")}
+                      {result.guidanceAction.toUpperCase().replace("_", " ")}
                     </Text>
                   </View>
                   {result.guidanceAction !== "seek_care" && (
                     <View style={[styles.badge, { backgroundColor: getFitColors(result.personalFitLevel).bg }]}>
                       <Text style={[styles.badgeText, { color: getFitColors(result.personalFitLevel).text }]}>
-                        Fit: {formatFitLevel(result.personalFitLevel)}
+                        PERSONAL FIT · {formatFitLevel(result.personalFitLevel)}
                       </Text>
                     </View>
                   )}
@@ -578,7 +592,8 @@ export default function AiMealsScreen() {
 
               {(result.evidence?.length > 0) && (
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 16 }]}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>Why this answer?</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Why this answer</Text>
+                  <Text style={[styles.composerHint, { color: colors.textSecondary, marginBottom: 16 }]}>{result.evidence.length} signals considered</Text>
                   <View style={styles.evidenceList}>
                     {result.evidence.map((ev, i) => (
                       <View key={i} style={styles.evidenceItem}>
@@ -595,20 +610,21 @@ export default function AiMealsScreen() {
                     ))}
                   </View>
 
-                  <View style={styles.contextUsedRow}>
-                    <Text style={[styles.contextUsedTitle, { color: colors.textSecondary }]}>Context Used:</Text>
-                    <Text style={[styles.contextUsedStats, { color: colors.textSecondary }]}>
-                      {result.contextUsed?.safeFoods || 0} Safe, {result.contextUsed?.triggerFoods || 0} Triggers, {result.contextUsed?.symptomCheckIns || 0} Logs, {result.contextUsed?.learningEvents || 0} Learnings
-                    </Text>
-                  </View>
                 </View>
               )}
+
+              <View style={[styles.contextUsedRow, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                <View style={styles.contextHeading}><Feather name="layers" size={16} color={colors.teal} /><Text style={[styles.contextUsedTitle, { color: colors.text }]}>Context used</Text></View>
+                <Text style={[styles.contextUsedStats, { color: colors.textSecondary }]}>
+                  {result.contextUsed?.safeFoods || 0} safe · {result.contextUsed?.triggerFoods || 0} triggers · {result.contextUsed?.symptomCheckIns || 0} check-ins · {result.contextUsed?.learningEvents || 0} outcomes
+                </Text>
+              </View>
 
               {((result.detectedFoods && result.detectedFoods.length > 0) || (result.considerations && result.considerations.length > 0) || (result.swaps && result.swaps.length > 0) || (result.watchFor && result.watchFor.length > 0)) && (
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 16 }]}>
                   {result.detectedFoods && result.detectedFoods.length > 0 && (
                     <View style={styles.listSection}>
-                      <Text style={[styles.cardTitle, { color: colors.text }]}>Detected Foods</Text>
+                      <Text style={[styles.cardTitle, { color: colors.text }]}>On the plate</Text>
                       {result.detectedFoods.map((f, i) => (
                         <View key={i} style={styles.listItem}>
                           <View style={[styles.bullet, { backgroundColor: colors.textSecondary }]} />
@@ -619,7 +635,7 @@ export default function AiMealsScreen() {
                   )}
                   {result.watchFor && result.watchFor.length > 0 && (
                     <View style={[styles.listSection, (result.detectedFoods?.length) ? { marginTop: 16 } : {}]}>
-                      <Text style={[styles.cardTitle, { color: colors.text }]}>Watch For</Text>
+                      <Text style={[styles.cardTitle, { color: colors.text }]}>Keep an eye on</Text>
                       {result.watchFor.map((w, i) => (
                         <View key={i} style={styles.listItem}>
                           <View style={[styles.bullet, { backgroundColor: colors.warning }]} />
@@ -630,7 +646,7 @@ export default function AiMealsScreen() {
                   )}
                   {result.swaps && result.swaps.length > 0 && (
                     <View style={[styles.listSection, (result.detectedFoods?.length || result.watchFor?.length) ? { marginTop: 16 } : {}]}>
-                      <Text style={[styles.cardTitle, { color: colors.text }]}>Suggested Swaps</Text>
+                      <Text style={[styles.cardTitle, { color: colors.text }]}>What could help</Text>
                       {result.swaps.map((s, i) => (
                         <View key={i} style={styles.listItem}>
                           <View style={[styles.bullet, { backgroundColor: colors.success }]} />
@@ -655,7 +671,7 @@ export default function AiMealsScreen() {
 
               {result.suggestions && result.suggestions.length > 0 && (
                 <View style={styles.suggestionsSection}>
-                  <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 16 }]}>Meal Suggestions</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 8 }]}>Ideas for your table</Text>
                   {result.suggestions.map((s, i) => (
                     <View key={i} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                       <View style={styles.suggestionHeader}>
@@ -678,7 +694,7 @@ export default function AiMealsScreen() {
 
                       <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.purple, paddingVertical: 12 }]} onPress={() => handleAddSuggestion(s)}>
                         <Feather name="calendar" size={16} color="#fff" />
-                        <Text style={[styles.primaryBtnText, { fontSize: 14 }]}>Add to Menu</Text>
+                        <Text style={[styles.primaryBtnText, { fontSize: 14, color: colors.background }]}>Add to Menu</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -687,7 +703,7 @@ export default function AiMealsScreen() {
 
               {/* LEARN STAGE */}
               <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, marginTop: 24, borderWidth: 2 }]}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>4. Learn</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>How did it go?</Text>
 
                 {feedbackSaved ? (
                   <View style={styles.feedbackSuccess}>
@@ -745,7 +761,7 @@ export default function AiMealsScreen() {
                           onPress={handleSaveFeedback}
                         >
                           <Feather name="save" size={18} color="#fff" />
-                          <Text style={styles.primaryBtnText}>Save to Learning History</Text>
+                          <Text style={[styles.primaryBtnText, { color: colors.background }]}>Save to Learning History</Text>
                         </TouchableOpacity>
                       </>
                     )}
@@ -772,24 +788,55 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 16
+    paddingHorizontal: 22,
+    paddingBottom: 13,
+    paddingTop: 10,
+    borderBottomWidth: 1,
   },
-  headerBtn: { padding: 8, marginLeft: -8 },
-  headerTitle: { fontSize: 18, fontWeight: "700" as const },
-  scrollContent: { padding: 16 },
+  headerBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.4 },
+  scrollContent: { paddingHorizontal: 22, paddingTop: 18 },
+
+  hero: { paddingTop: 22, paddingBottom: 9, alignItems: "flex-start" },
+  heroMark: { width: 42, height: 42, borderRadius: 15, alignItems: "center", justifyContent: "center", marginBottom: 19, transform: [{ rotate: "-8deg" }] },
+  eyebrow: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 1.8 },
+  heroTitle: { fontSize: 34, lineHeight: 39, fontWeight: "800" as const, letterSpacing: -1.7, marginTop: 10 },
+  heroSubtitle: { fontSize: 14, lineHeight: 21, marginTop: 12, maxWidth: 320 },
+  shortcutRow: { flexDirection: "row", gap: 7, marginTop: 20, marginBottom: 4 },
+  shortcut: { flex: 1, minHeight: 60, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 3, gap: 5 },
+  shortcutText: { fontSize: 10, fontWeight: "700" as const, textAlign: "center" },
+  composer: { borderWidth: 1, borderRadius: 23, padding: 18, marginTop: 14, shadowColor: "#374237", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
+  composerHeading: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
+  smallIcon: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  composerTitle: { fontSize: 17, fontWeight: "800" as const, letterSpacing: -0.4 },
+  composerHint: { fontSize: 12, lineHeight: 17, marginTop: 3 },
+  composerInput: { minHeight: 77, fontSize: 15, lineHeight: 22, paddingTop: 9, paddingBottom: 10, textAlignVertical: "top" },
+  composerFooter: { borderTopWidth: 1, paddingTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  composerTools: { flexDirection: "row", alignItems: "center", gap: 7 },
+  toolBtn: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  composerFootnote: { fontSize: 11 },
+  sendBtn: { width: 44, height: 44, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  contextPanel: { borderWidth: 1, borderRadius: 21, marginTop: 3, padding: 18 },
+  contextHeading: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 17 },
+  contextHeadingText: { fontSize: 15, fontWeight: "700" as const },
+  fieldCaption: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 1.3, marginBottom: 10 },
+  compactInput: { borderWidth: 1, borderRadius: 13, minHeight: 46, fontSize: 13, paddingHorizontal: 13, paddingVertical: 11, textAlignVertical: "top" },
+  inlineNotice: { borderRadius: 15, padding: 15, flexDirection: "row", alignItems: "center", gap: 12 },
+  inlineNoticeText: { flex: 1, fontSize: 13, lineHeight: 19 },
+  recentMeal: { fontSize: 16, fontWeight: "700" as const, marginBottom: 17 },
+  resultTopline: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 15 },
+  signalDot: { width: 7, height: 7, borderRadius: 4 },
 
   flowStrip: { borderBottomWidth: 1, paddingVertical: 12, paddingHorizontal: 16 },
   flowStripInner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   flowStep: { flex: 1, alignItems: "center" },
   flowStepText: { fontSize: 12, fontWeight: "500" as const },
 
-  stageContainer: { gap: 16 },
+  stageContainer: { gap: 12 },
 
-  card: { padding: 20, borderRadius: 16, borderWidth: 1 },
-  sectionTitle: { fontSize: 20, fontWeight: "700" as const, marginBottom: 16 },
-  cardTitle: { fontSize: 16, fontWeight: "700" as const, marginBottom: 12 },
+  card: { padding: 20, borderRadius: 22, borderWidth: 1 },
+  sectionTitle: { fontSize: 21, fontWeight: "800" as const, marginBottom: 12, letterSpacing: -0.6 },
+  cardTitle: { fontSize: 17, fontWeight: "800" as const, marginBottom: 10, letterSpacing: -0.4 },
 
   modeSelector: {
     flexDirection: "row",
@@ -810,9 +857,9 @@ const styles = StyleSheet.create({
 
   label: { fontSize: 14, fontWeight: "600" as const, marginBottom: 10 },
 
-  chipsScroll: { gap: 8, paddingBottom: 4 },
-  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  chipText: { fontSize: 14, fontWeight: "500" as const },
+  chipsScroll: { gap: 7, paddingBottom: 2 },
+  chip: { paddingHorizontal: 13, paddingVertical: 9, minHeight: 38, borderRadius: 12, borderWidth: 1, justifyContent: "center" },
+  chipText: { fontSize: 12, fontWeight: "700" as const },
 
   input: {
     borderWidth: 1,
@@ -824,18 +871,18 @@ const styles = StyleSheet.create({
   },
 
   scanSection: { marginBottom: 20 },
-  photoActionRow: { flexDirection: "row", gap: 12 },
+  photoActionRow: { flexDirection: "row", gap: 9, marginBottom: 9 },
   photoActionBtn: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 20,
-    borderRadius: 14,
+    flexDirection: "row",
+    minHeight: 48,
+    borderRadius: 13,
     borderWidth: 1,
-    borderStyle: "dashed",
     gap: 8
   },
-  photoActionText: { fontSize: 14, fontWeight: "500" as const },
+  photoActionText: { fontSize: 13, fontWeight: "700" as const },
   imagePreviewContainer: { position: "relative", borderRadius: 14, overflow: "hidden" },
   imagePreview: { width: "100%", height: 180, borderWidth: 1, borderRadius: 14 },
   removeImageBtn: {
@@ -851,42 +898,42 @@ const styles = StyleSheet.create({
   },
 
   gutStateGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  gutStateChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
-  gutStateText: { fontSize: 14 },
-  connectionNote: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 16 },
-  connectionNoteText: { fontSize: 12, fontStyle: "italic" },
+  gutStateChip: { paddingHorizontal: 14, minHeight: 38, justifyContent: "center", borderRadius: 12, borderWidth: 1 },
+  gutStateText: { fontSize: 12, fontWeight: "700" as const },
+  connectionNote: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 19, paddingTop: 14, borderTopWidth: 1 },
+  connectionNoteText: { fontSize: 11, lineHeight: 17, flex: 1 },
 
   primaryBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 16,
-    borderRadius: 14,
+    borderRadius: 15,
     gap: 8
   },
-  primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" as const },
+  primaryBtnText: { fontSize: 15, fontWeight: "700" as const },
 
-  resetBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginBottom: 8, paddingVertical: 8 },
+  resetBtn: { flexDirection: "row", alignItems: "center", gap: 7, alignSelf: "flex-start", marginBottom: 10, paddingHorizontal: 14, minHeight: 42, borderRadius: 13 },
   resetBtnText: { fontSize: 14, fontWeight: "600" as const },
 
-  resultHeadline: { fontSize: 22, fontWeight: "800" as const, marginBottom: 8 },
-  resultOverview: { fontSize: 15, lineHeight: 22, marginBottom: 16 },
+  resultHeadline: { fontSize: 25, lineHeight: 31, fontWeight: "800" as const, letterSpacing: -0.8, marginBottom: 11 },
+  resultOverview: { fontSize: 14, lineHeight: 22, marginBottom: 18 },
   resultBadges: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  badgeText: { fontSize: 12, fontWeight: "700" as const },
-  summaryBox: { padding: 14, borderRadius: 12 },
+  badge: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 10 },
+  badgeText: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 0.4 },
+  summaryBox: { padding: 15, borderRadius: 14 },
   summaryText: { fontSize: 14, lineHeight: 20 },
 
-  evidenceList: { gap: 12 },
-  evidenceItem: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  evidenceList: { gap: 0 },
+  evidenceItem: { flexDirection: "row", alignItems: "flex-start", gap: 11, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#D9DED2" },
   evidenceIcon: { width: 24, alignItems: "center", marginTop: 2 },
   evidenceContent: { flex: 1 },
   evidenceTitle: { fontSize: 14, fontWeight: "600" as const, marginBottom: 2 },
   evidenceDetail: { fontSize: 13, lineHeight: 18 },
 
-  contextUsedRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: "rgba(0,0,0,0.05)" },
-  contextUsedTitle: { fontSize: 12, fontWeight: "600" as const },
-  contextUsedStats: { fontSize: 12 },
+  contextUsedRow: { padding: 17, borderWidth: 1, borderRadius: 18, marginTop: 2 },
+  contextUsedTitle: { fontSize: 14, fontWeight: "700" as const },
+  contextUsedStats: { fontSize: 11, lineHeight: 17 },
 
   listSection: { gap: 8 },
   listItem: { flexDirection: "row", alignItems: "flex-start", paddingRight: 16 },
@@ -900,20 +947,20 @@ const styles = StyleSheet.create({
   suggestionSubTitle: { fontSize: 14, fontWeight: "600" as const, marginBottom: 4, marginTop: 8 },
   suggestionText: { fontSize: 14, lineHeight: 20 },
 
-  feedbackPrompt: { fontSize: 16, fontWeight: "600" as const, marginBottom: 16, textAlign: "center" },
-  feedbackChips: { flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center" },
-  feedbackChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: "transparent" },
-  feedbackChipText: { fontSize: 14, fontWeight: "600" as const },
+  feedbackPrompt: { fontSize: 15, fontWeight: "600" as const, marginBottom: 17, lineHeight: 22 },
+  feedbackChips: { flexDirection: "row", gap: 7, flexWrap: "wrap" },
+  feedbackChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, minHeight: 43, borderRadius: 12, borderWidth: 1, borderColor: "transparent" },
+  feedbackChipText: { fontSize: 12, fontWeight: "700" as const },
   feedbackSuccess: { alignItems: "center", paddingVertical: 20, gap: 12 },
   feedbackSuccessTitle: { fontSize: 18, fontWeight: "700" as const },
   feedbackSuccessText: { fontSize: 14, textAlign: "center", paddingHorizontal: 20 },
 
-  disclaimer: { fontSize: 12, textAlign: "center", fontStyle: "italic", marginTop: 16, marginHorizontal: 16, lineHeight: 18 },
+  disclaimer: { fontSize: 11, lineHeight: 17, marginTop: 7, marginHorizontal: 3 },
 
-  consentIconContainer: { alignItems: "center", marginTop: 24, marginBottom: 8 },
-  consentTitle: { fontSize: 28, fontWeight: "800" as const, textAlign: "center", marginBottom: 8 },
-  consentDesc: { fontSize: 15, lineHeight: 22, textAlign: "center", marginBottom: 24 },
-  consentBox: { padding: 20, borderRadius: 16, borderWidth: 1 },
+  consentIconContainer: { alignItems: "center", justifyContent: "center", alignSelf: "center", width: 62, height: 62, borderRadius: 20, marginTop: 24, marginBottom: 8 },
+  consentTitle: { fontSize: 29, lineHeight: 35, fontWeight: "800" as const, textAlign: "center", marginBottom: 0, letterSpacing: -1 },
+  consentDesc: { fontSize: 14, lineHeight: 22, textAlign: "center", marginBottom: 7 },
+  consentBox: { padding: 20, borderRadius: 21, borderWidth: 1 },
   consentBoxTitle: { fontSize: 16, fontWeight: "700" as const, marginBottom: 12 },
   consentList: { gap: 12 },
   consentItem: { flexDirection: "row", alignItems: "center", gap: 12 },

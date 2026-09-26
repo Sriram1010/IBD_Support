@@ -1,1 +1,2 @@
 - [Externalized AI SDK runtime dependency](externalized-ai-sdk.md) — server bundles may externalize provider SDKs, requiring a direct runtime dependency in the server package.
+- [Assistant-first navigation](assistant-first-navigation.md) — keep primary tabs focused while retaining all existing health records through More.

@@ -20,7 +20,7 @@ import { parse24h } from "@/components/WheelPicker";
 const CATEGORY_ORDER_KEY = "mgi_food_category_order";
 const CUSTOM_CATEGORIES_KEY = "mgi_food_custom_categories";
 const DEFAULT_ORDER: FoodCategory[] = ["trigger", "safe", "reintroduce", "flareup"];
-const CUSTOM_CATEGORY_COLORS = ["#1B8A7B", "#7C5CBF", "#C4881A", "#2563EB", "#DB2777"];
+const CUSTOM_CATEGORY_COLORS = [Colors.light.teal, Colors.light.tint, Colors.light.gold, Colors.light.success, Colors.light.warning];
 
 interface FoodCategoryCard {
   id: FoodCategory;
@@ -42,10 +42,10 @@ function fmtTime12(t: string): string {
 }
 
 const CATEGORY_META: Record<string, { label: string; color: string; icon: string; bg: string }> = {
-  trigger: { label: "Trigger Foods", color: "#EF4444", icon: "alert-triangle", bg: "#FEF2F2" },
-  flareup: { label: "Flare-up Foods", color: "#DC2626", icon: "zap", bg: "#FFF1F1" },
-  safe: { label: "Safe Foods", color: "#10B981", icon: "check-circle", bg: "#ECFDF5" },
-  reintroduce: { label: "Reintroduce", color: "#F97316", icon: "refresh-cw", bg: "#FFF7ED" },
+  trigger: { label: "Trigger Foods", color: Colors.light.destructive, icon: "alert-triangle", bg: Colors.light.sectionBg },
+  flareup: { label: "Flare-up Foods", color: Colors.light.destructive, icon: "zap", bg: Colors.light.sectionBg },
+  safe: { label: "Safe Foods", color: Colors.light.success, icon: "check-circle", bg: Colors.light.sectionBg },
+  reintroduce: { label: "Reintroduce", color: Colors.light.warning, icon: "refresh-cw", bg: Colors.light.sectionBg },
 };
 
 export default function FoodScreen() {
@@ -126,7 +126,13 @@ export default function FoodScreen() {
   const byCategory = (cat: FoodCategory) => foodTriggers.filter((t) => (t.category ?? "trigger") === cat);
 
   const getCategoryMeta = (cat: FoodCategory) =>
-    CATEGORY_META[cat] ??
+    (cat === "trigger" || cat === "flareup"
+      ? { ...CATEGORY_META[cat], color: colors.destructive }
+      : cat === "safe"
+        ? { ...CATEGORY_META[cat], color: colors.success }
+        : cat === "reintroduce"
+          ? { ...CATEGORY_META[cat], color: colors.warning }
+          : undefined) ??
     customCategories.find((card) => card.id === cat) ?? {
       label: cat,
       color: colors.tint,
@@ -274,18 +280,18 @@ export default function FoodScreen() {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
+        <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 10 }]}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.headerText }]}>Food</Text>
             <Text style={[styles.headerSub, { color: colors.headerTextSecondary }]}>Track your food sensitivities</Text>
           </View>
           <View style={styles.headerButtons}>
             <TouchableOpacity
-              style={[styles.headerReorderBtn, { backgroundColor: isReordering ? colors.gold : "rgba(255,255,255,0.18)" }]}
+              style={[styles.headerReorderBtn, { backgroundColor: isReordering ? colors.gold : colors.surfaceElevated }]}
               onPress={() => { setIsReordering((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
             >
-              <Feather name={isReordering ? "check" : "menu"} size={16} color="#fff" />
-              <Text style={styles.headerReorderText}>{isReordering ? "Done" : "Reorder"}</Text>
+              <Feather name={isReordering ? "check" : "menu"} size={16} color={isReordering ? colors.onGold : colors.text} />
+              <Text style={[styles.headerReorderText, { color: isReordering ? colors.onGold : colors.text }]}>{isReordering ? "Done" : "Reorder"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID="add-food-card-button"
@@ -294,16 +300,16 @@ export default function FoodScreen() {
               style={[styles.headerAddBtn, { backgroundColor: colors.gold }]}
               onPress={openAddCategory}
             >
-              <Feather name="plus" size={18} color="#fff" />
+              <Feather name="plus" size={18} color={colors.onGold} />
             </TouchableOpacity>
             <ProfileSettingsButton color={colors.headerText} />
           </View>
         </View>
 
         {/* Summary banner */}
-        <View style={[styles.banner, { backgroundColor: colors.purple }]}>
-          <Feather name="layers" size={15} color="#fff" />
-          <Text style={styles.bannerText}>
+        <View style={[styles.banner, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+          <Feather name="layers" size={14} color={colors.tint} />
+          <Text style={[styles.bannerText, { color: colors.textSecondary }]}>
             {foodTriggers.length} foods · {categoryOrder.length} categories
           </Text>
         </View>
@@ -330,7 +336,7 @@ export default function FoodScreen() {
                 key={cat}
                 style={[
                   styles.sectionCard,
-                  { backgroundColor: colors.card, shadowColor: colors.shadow },
+                  { backgroundColor: colors.card, borderColor: colors.border },
                   isReordering && styles.sectionCardReordering,
                   isReordering && { borderColor: meta.color + "44", borderWidth: 1.5 },
                 ]}
@@ -372,7 +378,7 @@ export default function FoodScreen() {
                         style={[styles.sectionAddBtn, { backgroundColor: meta.color }]}
                         onPress={() => openAdd(cat)}
                       >
-                        <Feather name="plus" size={14} color="#fff" />
+                          <Feather name="plus" size={14} color={colors.onAccent} />
                       </TouchableOpacity>
                     )}
                     <TouchableOpacity
@@ -382,7 +388,7 @@ export default function FoodScreen() {
                       style={styles.sectionDeleteBtn}
                       onPress={() => handleDeleteCategory(cat)}
                     >
-                      <Feather name="trash-2" size={13} color="#DC2626" />
+                      <Feather name="trash-2" size={13} color={colors.destructive} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -419,8 +425,8 @@ export default function FoodScreen() {
                           <TouchableOpacity onPress={() => openEdit(t)} style={[styles.actionBtn, { backgroundColor: colors.sectionBg }]}>
                             <Feather name="edit-2" size={13} color={colors.tint} />
                           </TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleDelete(t.id, t.food)} style={[styles.actionBtn, { backgroundColor: "#FEE2E2" }]}>
-                            <Feather name="trash-2" size={13} color="#EF4444" />
+                          <TouchableOpacity onPress={() => handleDelete(t.id, t.food)} style={[styles.actionBtn, { backgroundColor: colors.sectionBg }]}>
+                            <Feather name="trash-2" size={13} color={colors.destructive} />
                           </TouchableOpacity>
                         </View>
                       )}
@@ -471,7 +477,7 @@ export default function FoodScreen() {
                       onPress={handleAddCategory}
                       disabled={isAddingCategory}
                     >
-                      <Text style={styles.saveText}>{isAddingCategory ? "Adding…" : "Add card"}</Text>
+                      <Text style={[styles.saveText, { color: colors.onAccent }]}>{isAddingCategory ? "Adding…" : "Add card"}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -543,7 +549,7 @@ export default function FoodScreen() {
                       <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.saveBtn, { backgroundColor: getCategoryMeta(category).color }]} onPress={handleSave}>
-                      <Text style={styles.saveText}>Save</Text>
+                      <Text style={[styles.saveText, { color: colors.onAccent }]}>Save</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -558,31 +564,31 @@ export default function FoodScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 14, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
-  headerTitle: { fontSize: 28, fontWeight: "700" as const },
-  headerSub: { fontSize: 13, marginTop: 2 },
+  header: { paddingHorizontal: 22, paddingBottom: 14, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
+  headerTitle: { fontSize: 23, fontWeight: "700" as const, letterSpacing: -0.6 },
+  headerSub: { fontSize: 12, marginTop: 3 },
   headerButtons: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   headerReorderBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   headerReorderText: { color: "#fff", fontSize: 13, fontWeight: "600" as const },
   headerAddBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  banner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
+  banner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 22, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   bannerText: { color: "#fff", fontSize: 13, fontWeight: "600" as const },
   reorderHintBar: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 0.5 },
   reorderHintText: { fontSize: 12 },
-  sectionCard: { borderRadius: 16, marginBottom: 14, overflow: "hidden", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  sectionCard: { borderRadius: 12, marginBottom: 10, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth },
   sectionCardReordering: { shadowOpacity: 0.06, elevation: 4 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 12 },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
   sectionHeaderActions: { flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionIconBox: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  sectionTitle: { fontSize: 16, fontWeight: "700" as const },
+  sectionIconBox: { width: 29, height: 29, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  sectionTitle: { fontSize: 15, fontWeight: "700" as const },
   countBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   countBadgeText: { fontSize: 12, fontWeight: "700" as const },
   sectionAddBtn: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   sectionDeleteBtn: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FEE2E2" },
   sectionEmpty: { paddingHorizontal: 14, paddingBottom: 14, paddingTop: 2 },
   sectionEmptyText: { fontSize: 13, fontStyle: "italic" as const },
-  foodRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
+  foodRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
   foodDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
   foodName: { fontSize: 14, fontWeight: "600" as const },
   foodMeta: { fontSize: 11, marginTop: 1, marginBottom: 2 },

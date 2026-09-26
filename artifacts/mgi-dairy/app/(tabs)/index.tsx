@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -41,10 +42,11 @@ function KbSheet({ visible, onClose, title, children, insets, scrollable }: {
   visible: boolean; onClose: () => void; title: string; children: React.ReactNode;
   insets: { bottom: number }; scrollable?: boolean;
 }) {
+  const sheetColors = useColorScheme() === "dark" ? Colors.dark : Colors.light;
   const inner = (
-    <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-      <View style={shStyles.handle} />
-      <Text style={shStyles.title}>{title}</Text>
+    <View style={[shStyles.sheet, { paddingBottom: insets.bottom + 16, backgroundColor: sheetColors.surface }]}>
+      <View style={[shStyles.handle, { backgroundColor: sheetColors.border }]} />
+      <Text style={[shStyles.title, { color: sheetColors.text }]}>{title}</Text>
       {children}
     </View>
   );
@@ -68,7 +70,7 @@ function KbSheet({ visible, onClose, title, children, insets, scrollable }: {
 
 const shStyles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "92%" },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "92%" },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E0D8F0", alignSelf: "center", marginBottom: 16 },
   title: { fontSize: 20, fontWeight: "700" as const, marginBottom: 16, color: "#1A1A2E" },
 });
@@ -109,13 +111,14 @@ function NutritionBadge({ label, value, unit, color }: { label: string; value: n
 }
 
 export default function DiaryScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = colorScheme === "dark" ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
   const today = useDateString();
 
   const {
-    meals, waterEntries, sleepLogs, weightLogs,
+    meals, waterEntries, sleepLogs, weightLogs, symptomLogs, aiLearningEvents, isLoading,
     addMeal, updateMeal, deleteMeal,
     addWaterEntry, deleteWaterEntry, updateWaterEntry,
     addSleepLog, updateSleepLog,
@@ -134,6 +137,8 @@ export default function DiaryScreen() {
   const todaySleep = useMemo(() => sleepLogs.find((s) => s.date === today), [sleepLogs, today]);
   const todayExercise = useMemo(() => getTodayExercise(today), [getTodayExercise, today]);
   const todayWeight = useMemo(() => getWeightEntry(today), [getWeightEntry, today]);
+  const todaySymptoms = useMemo(() => symptomLogs.find((s) => s.date === today), [symptomLogs, today]);
+  const todayReflections = useMemo(() => aiLearningEvents.filter((e) => e.date === today).length, [aiLearningEvents, today]);
 
   const todayNutrition = useMemo(() => {
     return todayMeals.reduce((acc, m) => ({
@@ -218,7 +223,7 @@ export default function DiaryScreen() {
 
   const topPad = Platform.OS === "web" ? 67 + insets.top : insets.top;
   const tabBarHeight = Platform.OS === "web" ? 60 : 50;
-  const bottomPad = insets.bottom + tabBarHeight + 16;
+  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + tabBarHeight + 16;
   const sleepHoursToday = calcSleepHoursNum(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
   const sleepPct = Math.min((sleepHoursToday / sleepGoalHours) * 100, 100);
   const totalExerciseMin = (todayExercise?.running ?? 0) + (todayExercise?.walking ?? 0) +
@@ -462,29 +467,87 @@ export default function DiaryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 16 }]}>
+        <View style={[styles.header, { backgroundColor: colors.headerBg, paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
           <View style={styles.headerTopRow}>
             <View>
+              <Text style={[styles.brandLabel, { color: colors.leaf }]}>HAPPY COLON  /  YOUR SPACE</Text>
               <Text style={[styles.headerTitle, { color: colors.headerText }]}>Diary</Text>
-              <Text style={[styles.headerDate, { color: colors.headerTextSecondary }]}>{formatDisplayDate(today)}</Text>
             </View>
             <ProfileSettingsButton color={colors.headerText} />
           </View>
+          <Text style={[styles.headerDate, { color: colors.headerTextSecondary }]}>{formatDisplayDate(today)}</Text>
         </View>
 
-        <AutoHideScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
+        <AutoHideScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
+          <View style={styles.intro}>
+            <Text style={[styles.introTitle, { color: colors.text }]}>A little clarity,{"\n"}one day at a time.</Text>
+            <Text style={[styles.introCopy, { color: colors.textSecondary }]}>Your meals and daily notes, together in one place.</Text>
+          </View>
+
+          <View style={[styles.overview, { backgroundColor: colors.leafLight, borderColor: colors.border }]}>
+            <View style={styles.overviewHeading}>
+              <View style={[styles.overviewSymbol, { backgroundColor: colors.surface }]}><Feather name="activity" size={17} color={colors.leaf} /></View>
+              <Text style={[styles.overviewTitle, { color: colors.text }]}>Today, at a glance</Text>
+            </View>
+            {isLoading ? (
+              <View style={[styles.skeleton, { backgroundColor: colors.border }]} />
+            ) : (
+              <>
+                <View style={styles.overviewMetrics}>
+                  <View style={styles.metric}><Text style={[styles.metricValue, { color: colors.text }]}>{todayMeals.length}</Text><Text style={[styles.metricLabel, { color: colors.textSecondary }]}>meals</Text></View>
+                  <View style={[styles.metricDivider, { backgroundColor: colors.border }]} />
+                  <View style={styles.metric}><Text style={[styles.metricValue, { color: colors.text }]}>{todayWaterTotal ? `${todayWaterTotal} ml` : "—"}</Text><Text style={[styles.metricLabel, { color: colors.textSecondary }]}>water</Text></View>
+                  <View style={[styles.metricDivider, { backgroundColor: colors.border }]} />
+                  <View style={styles.metric}><Text style={[styles.metricValue, { color: colors.text }]}>{todaySymptoms || todayReflections ? `${(todaySymptoms ? 1 : 0) + todayReflections}` : "—"}</Text><Text style={[styles.metricLabel, { color: colors.textSecondary }]}>reactions</Text></View>
+                </View>
+                <Text style={[styles.overviewNote, { color: colors.textSecondary }]}>
+                  {todayMeals.length || todayWaterTotal || todaySymptoms || todayReflections
+                    ? "Only what you’ve recorded. Patterns take time to emerge."
+                    : "Nothing logged yet. Start with a meal or a small daily note."}
+                </Text>
+              </>
+            )}
+          </View>
+
+          <View style={styles.quickSection}>
+            <Text style={[styles.smallHeading, { color: colors.textSecondary }]}>QUICK ACTIONS</Text>
+            <View style={styles.quickRow}>
+              <TouchableOpacity testID="quick-add-meal" onPress={openAddMeal} style={[styles.quickAction, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.quickIcon, { backgroundColor: colors.leafLight }]}><Feather name="plus" size={17} color={colors.leaf} /></View>
+                <Text style={[styles.quickText, { color: colors.text }]}>Add meal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity testID="quick-add-water" onPress={() => setShowWaterModal(true)} style={[styles.quickAction, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.quickIcon, { backgroundColor: colors.tealLight }]}><Feather name="droplet" size={17} color={colors.teal} /></View>
+                <Text style={[styles.quickText, { color: colors.text }]}>Log water</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity testID="open-food-guide" onPress={() => router.push("/guide")} style={[styles.guideBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.guideIllustration, { backgroundColor: colors.leafLight }]}>
+              <Feather name="compass" size={25} color={colors.leaf} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.guideEyebrow, { color: colors.leaf }]}>EXPLORE YOUR PATTERNS</Text>
+              <Text style={[styles.guideTitle, { color: colors.text }]}>Food Guide</Text>
+              <Text style={[styles.guideDescription, { color: colors.textSecondary }]}>Gentle guidance from what you’ve logged.</Text>
+            </View>
+            <Feather name="arrow-up-right" size={19} color={colors.leaf} />
+          </TouchableOpacity>
+
+          <View style={styles.entriesHeading}><Text style={[styles.smallHeading, { color: colors.textSecondary }]}>YOUR DAILY ENTRIES</Text><Text style={[styles.entriesDate, { color: colors.textSecondary }]}>TODAY</Text></View>
 
           {/* FOOD LOG */}
-          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Food Log</Text>
-              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openAddMeal}>
-                <Feather name="plus" size={16} color="#fff" />
+              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.leafLight }]} onPress={openAddMeal}>
+                <Feather name="plus" size={16} color={colors.leaf} />
               </TouchableOpacity>
             </View>
 
             {todayMeals.length === 0 ? (
-              <View style={styles.emptyState}><Feather name="coffee" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>No food logged today</Text></View>
+               <View style={styles.emptyState}><Feather name="coffee" size={21} color={colors.leaf} /><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No food logged today. Add a meal when you’re ready.</Text></View>
             ) : (
               <View>
                 <View style={[styles.tableHeader, { borderBottomColor: colors.border }]}>
@@ -574,7 +637,7 @@ export default function DiaryScreen() {
           </View>
 
           {/* WATER */}
-          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <View style={styles.waterHeaderRow}>
               <View style={styles.waterTitleRow}>
                 <Feather name="droplet" size={16} color={colors.teal} />
@@ -594,7 +657,7 @@ export default function DiaryScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            <View style={[styles.amountCard, { backgroundColor: colors.tealLight, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+            <View style={[styles.amountCard, { backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
               <Text style={[styles.amountBig, { color: colors.teal }]}>{waterAmountDisplay}</Text>
               <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
                 onPress={() => { setGoalInput(mlToGallons(waterGoalMl)); setGoalUnit("gal"); setShowGoalModal(true); }}>
@@ -607,11 +670,11 @@ export default function DiaryScreen() {
           </View>
 
           {/* SLEEP */}
-          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Sleep</Text>
               <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openSleep}>
-                <Feather name="plus" size={16} color="#fff" />
+                <Feather name="plus" size={16} color={colors.onGold} />
               </TouchableOpacity>
             </View>
             {todaySleep ? (
@@ -621,8 +684,8 @@ export default function DiaryScreen() {
                   <SleepStat label="Wake" value={todaySleep.wakeTime} colors={colors} />
                   <SleepStat label="Total" value={totalHoursStr} colors={colors} highlight />
                 </View>
-                <View style={[styles.amountCard, { backgroundColor: colors.sectionBg, marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
-                  <Text style={[styles.amountBig, { color: colors.gold, fontSize: 24 }]}>{sleepHoursToday}h</Text>
+                <View style={[styles.amountCard, { backgroundColor: colors.surface, marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+                  <Text style={[styles.amountBig, { color: colors.goldText, fontSize: 24 }]}>{sleepHoursToday}h</Text>
                   <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
                     onPress={(e) => { e.stopPropagation?.(); setSleepGoalInput(String(sleepGoalHours)); setShowSleepGoalModal(true); }}>
                     <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {sleepGoalHours}h</Text>
@@ -640,7 +703,7 @@ export default function DiaryScreen() {
           </View>
 
           {/* WEIGHT */}
-          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <View style={styles.waterHeaderRow}>
               <View style={styles.waterTitleRow}>
                 <Feather name="trending-up" size={16} color={colors.purple} />
@@ -662,7 +725,7 @@ export default function DiaryScreen() {
             </View>
             {todayWeight ? (
               <TouchableOpacity onPress={openWeight}>
-                <View style={[styles.amountCard, { backgroundColor: colors.sectionBg, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+                <View style={[styles.amountCard, { backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
                   <Text style={[styles.amountBig, { color: colors.purple }]}>{weightDisplayStr}</Text>
                   <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
                     onPress={(e) => { e.stopPropagation?.(); setWeightGoalInput(weightUnit === "kg" ? String(weightGoalKg) : kgToLbs(weightGoalKg)); setWeightGoalUnit(weightUnit); setShowWeightGoalModal(true); }}>
@@ -680,11 +743,11 @@ export default function DiaryScreen() {
           </View>
 
           {/* EXERCISE */}
-          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Exercise</Text>
               <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openExercise}>
-                <Feather name="plus" size={16} color="#fff" />
+                <Feather name="plus" size={16} color={colors.onGold} />
               </TouchableOpacity>
             </View>
             {todayExercise && totalExerciseMin > 0 ? (
@@ -698,8 +761,8 @@ export default function DiaryScreen() {
                     <ExerciseTile key={i} icon="plus-circle" label={a.name} value={a.minutes} colors={colors} />
                   ))}
                 </View>
-                <View style={[styles.amountCard, { backgroundColor: colors.sectionBg, marginTop: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
-                  <Text style={[styles.amountBig, { color: colors.gold, fontSize: 24 }]}>{totalExerciseMin} min</Text>
+                <View style={[styles.amountCard, { backgroundColor: colors.surface, marginTop: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+                  <Text style={[styles.amountBig, { color: colors.goldText, fontSize: 24 }]}>{totalExerciseMin} min</Text>
                   <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
                     onPress={(e) => { e.stopPropagation?.(); setExerciseGoalInput(String(exerciseGoalMinutes)); setShowExerciseGoalModal(true); }}>
                     <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {exerciseGoalMinutes}min</Text>
@@ -763,8 +826,8 @@ export default function DiaryScreen() {
                   {/* Photos */}
                   <View style={styles.imageSection}>
                     <TouchableOpacity style={[styles.cameraBtn, { backgroundColor: colors.sectionBg }]} onPress={pickImages}>
-                      <Feather name="camera" size={18} color={colors.gold} />
-                      <Text style={[styles.cameraBtnText, { color: colors.gold }]}>Add Photos</Text>
+                      <Feather name="camera" size={18} color={colors.goldText} />
+                      <Text style={[styles.cameraBtnText, { color: colors.goldText }]}>Add Photos</Text>
                     </TouchableOpacity>
                   </View>
                   {mealImages.length > 0 && (
@@ -785,7 +848,7 @@ export default function DiaryScreen() {
                       <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveMeal}>
-                      <Text style={styles.saveText}>Save</Text>
+                      <Text style={[styles.saveText, { color: colors.onGold }]}>Save</Text>
                     </TouchableOpacity>
                   </View>
                 </ScrollView>
@@ -895,13 +958,13 @@ export default function DiaryScreen() {
                   {sleepTimeFormat === "12h" ? <SimpleTimeInput value={wakeTime} onChange={setWakeTime} colors={colors} /> : <Simple24hInput value={wakeTime} onChange={setWakeTime} colors={colors} />}
                 </View>
                 <View style={[styles.sleepTotalBox, { backgroundColor: colors.tealLight, marginTop: 12 }]}>
-                  <Feather name="moon" size={18} color={colors.gold} />
-                  <Text style={[styles.sleepTotalText, { color: colors.gold }]}>Total: {calcSleepHours(bedtime, wakeTime)}</Text>
+                  <Feather name="moon" size={18} color={colors.goldText} />
+                  <Text style={[styles.sleepTotalText, { color: colors.goldText }]}>Total: {calcSleepHours(bedtime, wakeTime)}</Text>
                 </View>
                 <TextInput style={[styles.sleepNotesInput, { backgroundColor: colors.inputBg, color: colors.text, marginTop: 10 }]} value={sleepNotes} onChangeText={setSleepNotes} placeholder="Optional notes…" placeholderTextColor={colors.placeholder} multiline numberOfLines={2} />
                 <View style={styles.modalButtons}>
                   <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSleepSheet(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
-                  <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleep}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleep}><Text style={[styles.saveText, { color: colors.onGold }]}>Save</Text></TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -921,7 +984,7 @@ export default function DiaryScreen() {
           </View>
           <View style={styles.modalButtons}>
             <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowSleepGoalModal(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleepGoal}><Text style={styles.saveText}>Save Goal</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveSleepGoal}><Text style={[styles.saveText, { color: colors.onGold }]}>Save Goal</Text></TouchableOpacity>
           </View>
         </KbSheet>
 
@@ -946,7 +1009,7 @@ export default function DiaryScreen() {
                       {customActivities.map((a, i) => (
                         <View key={i} style={styles.activityRow}>
                           <View style={[styles.activityIconBox, { backgroundColor: colors.sectionBg }]}>
-                            <Feather name="plus-circle" size={18} color={colors.gold} />
+                            <Feather name="plus-circle" size={18} color={colors.goldText} />
                           </View>
                           <Text style={[styles.activityLabel, { color: colors.text }]}>{a.name}</Text>
                           <View style={[styles.activityInput, { backgroundColor: colors.inputBg, alignItems: "center", justifyContent: "center" }]}>
@@ -968,18 +1031,18 @@ export default function DiaryScreen() {
                       <TextInput style={[styles.customActivityInput, { backgroundColor: colors.inputBg, color: colors.text, flex: 1 }]} value={newActivityName} onChangeText={setNewActivityName} placeholder="e.g. Swimming, Cycling…" placeholderTextColor={colors.placeholder} />
                       <TextInput style={[styles.customActivityMins, { backgroundColor: colors.inputBg, color: colors.text }]} value={newActivityMins} onChangeText={setNewActivityMins} placeholder="Min" placeholderTextColor={colors.placeholder} keyboardType="number-pad" />
                       <TouchableOpacity style={[styles.manualAddBtn, { backgroundColor: colors.gold, height: 44, width: 44 }]} onPress={handleAddCustomActivity}>
-                        <Feather name="plus" size={18} color="#fff" />
+                        <Feather name="plus" size={18} color={colors.onGold} />
                       </TouchableOpacity>
                     </View>
                   </View>
 
                   <View style={[styles.exTotalRow, { backgroundColor: colors.sectionBg, marginTop: 12 }]}>
                     <Text style={[styles.exTotalLabel, { color: colors.textSecondary }]}>Total Active Time</Text>
-                    <Text style={[styles.exTotalValue, { color: colors.gold }]}>{exTotalSheet} min</Text>
+                    <Text style={[styles.exTotalValue, { color: colors.goldText }]}>{exTotalSheet} min</Text>
                   </View>
                   <View style={styles.modalButtons}>
                     <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseSheet(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExercise}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExercise}><Text style={[styles.saveText, { color: colors.onGold }]}>Save</Text></TouchableOpacity>
                   </View>
                 </ScrollView>
               </View>
@@ -992,14 +1055,14 @@ export default function DiaryScreen() {
           <View style={[styles.presetsRow, { marginBottom: 12, flexWrap: "wrap" }]}>
             {EXERCISE_PRESETS.map((m) => (
               <TouchableOpacity key={m} style={[styles.presetChip, { backgroundColor: exerciseGoalMinutes === m ? colors.gold : colors.sectionBg, borderColor: exerciseGoalMinutes === m ? colors.gold : colors.border, borderWidth: 1 }]} onPress={() => handleQuickExerciseGoal(m)}>
-                <Text style={[styles.presetChipText, { color: exerciseGoalMinutes === m ? "#fff" : colors.text }]}>{m} min</Text>
+                <Text style={[styles.presetChipText, { color: exerciseGoalMinutes === m ? colors.onGold : colors.text }]}>{m} min</Text>
               </TouchableOpacity>
             ))}
           </View>
           <TextInput style={[styles.goalInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, borderWidth: 1, width: "100%" }]} value={exerciseGoalInput} onChangeText={setExerciseGoalInput} keyboardType="number-pad" placeholder="Minutes" placeholderTextColor={colors.placeholder} />
           <View style={styles.modalButtons}>
             <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setShowExerciseGoalModal(false)}><Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExerciseGoal}><Text style={styles.saveText}>Save Goal</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.gold }]} onPress={handleSaveExerciseGoal}><Text style={[styles.saveText, { color: colors.onGold }]}>Save Goal</Text></TouchableOpacity>
           </View>
         </KbSheet>
 
@@ -1121,7 +1184,7 @@ function SleepStat({ label, value, colors, highlight }: { label: string; value: 
 function ExerciseTile({ icon, label, value, colors }: { icon: string; label: string; value: number; colors: any }) {
   return (
     <View style={[styles.exTile, { backgroundColor: colors.sectionBg }]}>
-      <Feather name={icon as any} size={18} color={colors.gold} style={{ marginBottom: 4 }} />
+      <Feather name={icon as any} size={18} color={colors.goldText} style={{ marginBottom: 4 }} />
       <Text style={[styles.exTileValue, { color: colors.text }]}>{value} min</Text>
       <Text style={[styles.exTileLabel, { color: colors.textSecondary }]} numberOfLines={1}>{label}</Text>
     </View>
@@ -1131,7 +1194,7 @@ function ExerciseTile({ icon, label, value, colors }: { icon: string; label: str
 function ActivityInput({ icon, label, value, onChange, colors }: { icon: string; label: string; value: string; onChange: (v: string) => void; colors: any }) {
   return (
     <View style={styles.activityRow}>
-      <View style={[styles.activityIconBox, { backgroundColor: colors.sectionBg }]}><Feather name={icon as any} size={18} color={colors.gold} /></View>
+      <View style={[styles.activityIconBox, { backgroundColor: colors.sectionBg }]}><Feather name={icon as any} size={18} color={colors.goldText} /></View>
       <Text style={[styles.activityLabel, { color: colors.text }]}>{label}</Text>
       <TextInput value={value} onChangeText={onChange} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.placeholder} style={[styles.activityInput, { backgroundColor: colors.inputBg, color: colors.text }]} />
       <Text style={[styles.activityUnit, { color: colors.textSecondary }]}>min</Text>
@@ -1141,16 +1204,44 @@ function ActivityInput({ icon, label, value, onChange, colors }: { icon: string;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16 },
+  header: { paddingHorizontal: 22, paddingBottom: 13, borderBottomWidth: 1 },
   headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitle: { fontSize: 28, fontWeight: "700" as const },
-  headerDate: { fontSize: 13, marginTop: 2 },
-  card: { borderRadius: 16, padding: 16, marginBottom: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  brandLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 1.7, marginBottom: 5 },
+  headerTitle: { fontSize: 25, fontWeight: "700" as const, letterSpacing: -0.6 },
+  headerDate: { fontSize: 12, marginTop: 4 },
+  intro: { paddingTop: 23, paddingBottom: 20 },
+  introTitle: { fontSize: 29, lineHeight: 34, fontWeight: "600", letterSpacing: -1.15 },
+  introCopy: { fontSize: 13, lineHeight: 19, marginTop: 8 },
+  overview: { borderRadius: 18, borderWidth: 1, paddingHorizontal: 17, paddingTop: 16, paddingBottom: 14 },
+  overviewHeading: { flexDirection: "row", alignItems: "center", gap: 9 },
+  overviewSymbol: { width: 29, height: 29, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  overviewTitle: { fontSize: 14, fontWeight: "600" },
+  overviewMetrics: { flexDirection: "row", alignItems: "center", marginTop: 16, marginBottom: 13 },
+  metric: { flex: 1, alignItems: "center" },
+  metricValue: { fontSize: 20, fontWeight: "700", letterSpacing: -0.6 },
+  metricLabel: { fontSize: 11, marginTop: 3 },
+  metricDivider: { height: 27, width: 1 },
+  overviewNote: { fontSize: 11, lineHeight: 16, textAlign: "center" },
+  skeleton: { height: 64, borderRadius: 9, marginTop: 15, opacity: 0.45 },
+  quickSection: { marginTop: 24 },
+  smallHeading: { fontSize: 10, fontWeight: "700", letterSpacing: 1.45 },
+  quickRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+  quickAction: { flex: 1, minHeight: 56, borderWidth: 1, borderRadius: 13, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 11 },
+  quickIcon: { width: 31, height: 31, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  quickText: { fontSize: 13, fontWeight: "600" },
+  guideBanner: { borderWidth: 1, borderRadius: 17, flexDirection: "row", alignItems: "center", padding: 12, gap: 12, marginTop: 18 },
+  guideIllustration: { width: 58, height: 60, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  guideEyebrow: { fontSize: 9, fontWeight: "700", letterSpacing: 1.1 },
+  guideTitle: { fontSize: 17, fontWeight: "700", marginTop: 2 },
+  guideDescription: { fontSize: 11, marginTop: 3, lineHeight: 15 },
+  entriesHeading: { flexDirection: "row", justifyContent: "space-between", marginTop: 29, marginBottom: 9 },
+  entriesDate: { fontSize: 10, letterSpacing: 1 },
+  card: { borderRadius: 0, paddingHorizontal: 1, paddingTop: 18, paddingBottom: 21, marginBottom: 0, borderBottomWidth: 1, shadowOpacity: 0, elevation: 0 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   cardTitle: { fontSize: 17, fontWeight: "600" as const },
   addBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  emptyState: { alignItems: "center", paddingVertical: 20, gap: 8 },
-  emptyText: { fontSize: 14 },
+  emptyState: { alignItems: "center", paddingVertical: 19, gap: 8 },
+  emptyText: { fontSize: 12, textAlign: "center", lineHeight: 17 },
   tableHeader: { flexDirection: "row", paddingBottom: 8, borderBottomWidth: 1, alignItems: "center", gap: 6 },
   tableHeaderLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
   tableHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -1206,8 +1297,8 @@ const styles = StyleSheet.create({
   toggleBtnText: { fontSize: 13, fontWeight: "600" as const },
   addWaterBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8 },
   addWaterBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" as const },
-  amountCard: { borderRadius: 12, padding: 14, marginBottom: 10 },
-  amountBig: { fontSize: 32, fontWeight: "700" as const },
+  amountCard: { borderRadius: 0, paddingVertical: 9, paddingHorizontal: 1, marginBottom: 8 },
+  amountBig: { fontSize: 25, fontWeight: "700" as const, letterSpacing: -0.7 },
   goalChip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   goalChipText: { fontSize: 12 },
   progressTrack: { height: 7, borderRadius: 4, overflow: "hidden", marginBottom: 6 },

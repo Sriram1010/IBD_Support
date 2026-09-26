@@ -1,82 +1,42 @@
-import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const isIOS = Platform.OS === "ios";
-  const colors = isDark ? Colors.dark : Colors.light;
+  const scheme = useColorScheme();
+  const colors = scheme === "dark" ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
+        headerShown: false,
         tabBarActiveTintColor: colors.tint,
         tabBarInactiveTintColor: colors.tabIconDefault,
-        headerShown: false,
         tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : isDark ? "#0F0A1E" : "#FFFFFF",
-          borderTopWidth: 1,
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
+          borderTopWidth: 1,
           elevation: 0,
-          height: Platform.OS === "web" ? 60 : insets.bottom + 50,
-          paddingBottom: Platform.OS === "web" ? 0 : insets.bottom,
+          height: Platform.OS === "web" ? 84 : 54 + insets.bottom,
+          paddingBottom: Platform.OS === "web" ? 18 : insets.bottom,
+          paddingTop: 7,
         },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: "500" as const,
-          marginBottom: 2,
-        },
-        tabBarIconStyle: { marginTop: 2 },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? "#0F0A1E" : "#FFFFFF" }]} />
-          ),
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "600", marginTop: 1 },
+        tabBarIconStyle: { marginTop: 1 },
+        tabBarItemStyle: { paddingHorizontal: 0 },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Diary",
-          tabBarIcon: ({ color }) => <Feather name="book-open" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: "Calendar",
-          tabBarIcon: ({ color }) => <Feather name="calendar" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="triggers"
-        options={{
-          title: "Food",
-          tabBarIcon: ({ color }) => <Feather name="feather" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="menu"
-        options={{
-          title: "Menu",
-          tabBarIcon: ({ color }) => <Feather name="list" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="meds"
-        options={{
-          title: "Meds",
-          tabBarIcon: ({ color }) => <Feather name="package" size={22} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="guide" options={{ title: "Guide", tabBarIcon: ({ color }) => <Feather name="compass" size={20} color={color} /> }} />
+      <Tabs.Screen name="index" options={{ title: "Diary", tabBarIcon: ({ color }) => <Feather name="book-open" size={19} color={color} /> }} />
+      <Tabs.Screen name="menu" options={{ title: "Menu", tabBarIcon: ({ color }) => <Feather name="list" size={19} color={color} /> }} />
+      <Tabs.Screen name="more" options={{ title: "More", tabBarIcon: ({ color }) => <Feather name="grid" size={19} color={color} /> }} />
+      <Tabs.Screen name="calendar" options={{ href: null }} />
+      <Tabs.Screen name="triggers" options={{ href: null }} />
+      <Tabs.Screen name="meds" options={{ href: null }} />
     </Tabs>
   );
 }
