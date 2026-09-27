@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { ProfileSettingsButton } from "@/components/ProfileSettingsButton";
 
 const destinations = [
   { title: "Calendar", subtitle: "See your daily logs over time", icon: "calendar" as const, route: "/calendar" as const },
@@ -25,8 +26,13 @@ export default function MoreScreen() {
           paddingBottom: (Platform.OS === "web" ? 84 : insets.bottom + 54) + 24,
         }]}
       >
-        <Text style={[styles.eyebrow, { color: colors.leaf }]}>HAPPY COLON / YOUR SPACE</Text>
-        <Text style={[styles.title, { color: colors.text }]}>More</Text>
+        <View style={styles.heading}>
+          <View>
+            <Text style={[styles.eyebrow, { color: colors.leaf }]}>HAPPY COLON / YOUR SPACE</Text>
+            <Text style={[styles.title, { color: colors.text }]}>More</Text>
+          </View>
+          <ProfileSettingsButton color={colors.text} />
+        </View>
         <Text style={[styles.intro, { color: colors.textSecondary }]}>
           Your records and settings, together in one place.
         </Text>
@@ -57,6 +63,7 @@ export default function MoreScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 22 },
+  heading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   eyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1.5, marginBottom: 22 },
   title: { fontSize: 36, fontWeight: "700", letterSpacing: -1.4 },
   intro: { fontSize: 14, lineHeight: 22, marginTop: 8, marginBottom: 30 },

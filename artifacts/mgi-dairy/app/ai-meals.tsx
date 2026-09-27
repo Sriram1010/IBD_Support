@@ -11,6 +11,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useApp as useAppContext } from "@/context/AppContext";
 import Colors from "@/constants/colors";
 import { AutoHideScrollView } from "@/components/AutoHideScrollView";
+import { ProfileSettingsButton } from "@/components/ProfileSettingsButton";
 import {
   useCreateAiMealAssistant,
   AiMealAssistantInputMode,
@@ -299,7 +300,7 @@ export default function AiMealsScreen() {
             </TouchableOpacity>
           )}
           <Text style={[styles.headerTitle, { color: colors.text }]}>Food Guide</Text>
-          <View style={{ width: 40 }} />
+          <ProfileSettingsButton color={colors.text} />
         </View>
 
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad, gap: 24 }]}>
@@ -365,15 +366,20 @@ export default function AiMealsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.borderLight }]}>
-        {isGuideTab ? <View style={styles.headerBtn} /> : (
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-            <Feather name="arrow-left" size={21} color={colors.text} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerSide}>
+          {isGuideTab ? <View style={styles.headerBtn} /> : (
+            <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+              <Feather name="arrow-left" size={21} color={colors.text} />
+            </TouchableOpacity>
+          )}
+        </View>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Food Guide <Text style={{ color: colors.teal }}>·</Text></Text>
-        <TouchableOpacity
-          onPress={() => {
-            Alert.alert("AI Data Controls", "Manage your AI consent and learning data.", [
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Manage AI consent and learning data"
+            onPress={() => {
+              Alert.alert("AI Data Controls", "Manage your AI consent and learning data.", [
               { text: "Cancel", style: "cancel" },
               { text: "Withdraw Gemini Consent", onPress: async () => {
                 try {
@@ -401,12 +407,14 @@ export default function AiMealsScreen() {
                   ]
                 );
               }}
-            ]);
-          }}
-          style={styles.headerBtn}
-        >
-          <Feather name="shield" size={20} color={colors.teal} />
-        </TouchableOpacity>
+              ]);
+            }}
+            style={styles.headerBtn}
+          >
+            <Feather name="shield" size={20} color={colors.teal} />
+          </TouchableOpacity>
+          <ProfileSettingsButton color={colors.text} />
+        </View>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -794,6 +802,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  headerSide: { width: 86 },
+  headerActions: { width: 86, flexDirection: "row", alignItems: "center" },
   headerTitle: { fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.4 },
   scrollContent: { paddingHorizontal: 22, paddingTop: 18 },
 
