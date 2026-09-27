@@ -11,7 +11,7 @@ import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
-import { useApp, MealEntry, CustomActivity } from "@/context/AppContext";
+import { useApp, MealEntry, CustomActivity, BowelLog } from "@/context/AppContext";
 import {
   useDateString, formatTimeFromDate, formatDisplayDate,
   mlToGallons, calcSleepHours, calcSleepHoursNum,
@@ -123,6 +123,7 @@ export default function DiaryScreen() {
     addWaterEntry, deleteWaterEntry, updateWaterEntry,
     addSleepLog, updateSleepLog,
     saveExerciseLog, getTodayExercise,
+    saveBowelLog,
     saveWeightEntry, deleteWeightEntry, getWeightEntry,
     waterGoalMl, setWaterGoalMl,
     sleepGoalHours, setSleepGoalHours,
@@ -162,7 +163,10 @@ export default function DiaryScreen() {
   const [showWeightSheet, setShowWeightSheet] = useState(false);
   const [showWeightGoalModal, setShowWeightGoalModal] = useState(false);
   const [showNutritionGoalModal, setShowNutritionGoalModal] = useState(false);
-  const [activeEntry, setActiveEntry] = useState<"food" | "water" | "sleep" | "weight" | "exercise" | null>(null);
+  const [activeEntry, setActiveEntry] = useState<"food" | "water" | "sleep" | "weight" | "exercise" | "bowel" | null>(null);
+  const [bowelColor, setBowelColor] = useState<BowelLog["color"]>("green");
+  const [bowelCount, setBowelCount] = useState("0");
+  const [bowelPhotos, setBowelPhotos] = useState<string[]>([]);
   const [showImageViewer, setShowImageViewer] = useState<string | null>(null);
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -245,14 +249,14 @@ export default function DiaryScreen() {
   const goalDisplayStr = waterUnit === "gal" ? `${mlToGallons(waterGoalMl)} gal` : `${waterGoalMl} ml`;
   const totalHoursStr = calcSleepHours(todaySleep?.bedtime ?? "", todaySleep?.wakeTime ?? "");
 
-  const pickImages = async () => {
+  const selectImages = (onSelected: (uris: string[]) => void) => {
     Alert.alert("Add Photos", "Choose source", [
       {
         text: "Camera", onPress: async () => {
           const cp = await ImagePicker.requestCameraPermissionsAsync();
           if (cp.status !== "granted") { Alert.alert("Permission needed", "Camera access required."); return; }
           const r = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-          if (!r.canceled && r.assets[0]) setMealImages((prev) => [...prev, r.assets[0].uri]);
+          if (!r.canceled && r.assets[0]) onSelected([r.assets[0].uri]);
         },
       },
       {
@@ -264,11 +268,39 @@ export default function DiaryScreen() {
             quality: 0.8,
             allowsMultipleSelection: true,
           });
-          if (!r.canceled) setMealImages((prev) => [...prev, ...r.assets.map((a) => a.uri)]);
+          if (!r.canceled) onSelected(r.assets.map((a) => a.uri));
         },
       },
       { text: "Cancel", style: "cancel" },
     ]);
+  };
+  const pickImages = () => selectImages((uris) => setMealImages((prev) => [...prev, ...uris]));
+  const pickBowelPhotos = () => selectImages((uris) => setBowelPhotos((prev) => [...prev, ...uris]));
+
+  const openEntry = (key: NonNullable<typeof activeEntry>) => {
+    if (key === "bowel") {
+      setBowelColor(todayBowel?.color ?? "green");
+      setBowelCount(String(todayBowel?.count ?? 0));
+      setBowelPhotos(todayBowel?.photos ?? []);
+    }
+    setActiveEntry(key);
+  };
+
+  // Dismiss the detail sheet before presenting another native modal (required on iOS).
+  const openEntryAction = (action: () => void) => {
+    setActiveEntry(null);
+    setTimeout(action, 350);
+  };
+
+  const handleSaveBowel = async () => {
+    const count = Number(bowelCount);
+    if (!Number.isInteger(count) || count < 0 || count > 99) {
+      Alert.alert("Invalid count", "Enter a number from 0 to 99.");
+      return;
+    }
+    await saveBowelLog({ date: today, color: bowelColor, count, photos: bowelPhotos });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setActiveEntry(null);
   };
 
   const openAddMeal = () => {
@@ -552,11 +584,9 @@ export default function DiaryScreen() {
                 key={entry.key}
                 testID={`diary-entry-${entry.key}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${entry.title}, ${entry.value}${entry.key === "bowel" ? ", open Calendar" : ", view details"}`}
+                accessibilityLabel={`${entry.title}, ${entry.value}, view details`}
                 accessibilityState={{ selected: activeEntry === entry.key }}
-                onPress={() => entry.key === "bowel"
-                  ? router.push("/calendar")
-                  : setActiveEntry(activeEntry === entry.key ? null : entry.key)}
+                onPress={() => openEntry(entry.key)}
                 style={[styles.entryTile, {
                   backgroundColor: activeEntry === entry.key ? entry.soft : colors.card,
                   borderColor: activeEntry === entry.key ? entry.accent : colors.border,
@@ -566,7 +596,7 @@ export default function DiaryScreen() {
                   <View style={[styles.entryTileIcon, { backgroundColor: entry.soft }]}>
                     <Feather name={entry.icon} size={18} color={entry.accent} />
                   </View>
-                  <Feather name={entry.key === "bowel" ? "arrow-up-right" : activeEntry === entry.key ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+                  <Feather name="chevron-up" size={16} color={colors.textSecondary} style={{ transform: [{ rotate: "180deg" }] }} />
                 </View>
                 <View>
                   <Text style={[styles.entryTileTitle, { color: colors.text }]}>{entry.title}</Text>
@@ -575,12 +605,26 @@ export default function DiaryScreen() {
               </TouchableOpacity>
             ))}
           </View>
+        </AutoHideScrollView>
 
+        <Modal visible={activeEntry !== null} animationType="slide" transparent onRequestClose={() => setActiveEntry(null)}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={shStyles.overlay}>
+              <TouchableWithoutFeedback onPress={() => setActiveEntry(null)}><View style={StyleSheet.absoluteFill} /></TouchableWithoutFeedback>
+              <View style={[styles.entrySheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
+                <View style={[shStyles.handle, { backgroundColor: colors.border }]} />
+                <View style={styles.entrySheetHeader}>
+                  <Text style={[styles.entrySheetTitle, { color: colors.text }]}>Today's {activeEntry === "food" ? "food log" : activeEntry}</Text>
+                  <TouchableOpacity accessibilityLabel="Close details" accessibilityRole="button" onPress={() => setActiveEntry(null)} style={styles.entryClose}>
+                    <Feather name="x" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.entrySheetContent}>
           {/* FOOD LOG */}
           {activeEntry === "food" && <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Food Log</Text>
-              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.leafLight }]} onPress={openAddMeal}>
+              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.leafLight }]} onPress={() => openEntryAction(openAddMeal)}>
                 <Feather name="plus" size={16} color={colors.leaf} />
               </TouchableOpacity>
             </View>
@@ -614,7 +658,7 @@ export default function DiaryScreen() {
                       </View>
                       <View style={styles.tdPhotoCol}>
                         {imgs.length > 0 ? (
-                          <TouchableOpacity onPress={() => openPhotoViewer(imgs, 0)}>
+                          <TouchableOpacity onPress={() => openEntryAction(() => openPhotoViewer(imgs, 0))}>
                             <Image source={{ uri: imgs[0] }} style={styles.thumbnail} />
                             {imgs.length > 1 && (
                               <View style={[styles.photoCountBadge, { backgroundColor: colors.purple }]}>
@@ -627,7 +671,7 @@ export default function DiaryScreen() {
                         )}
                       </View>
                       <View style={styles.mealActions}>
-                        <TouchableOpacity style={[styles.mealActionBtn, { backgroundColor: colors.sectionBg }]} onPress={() => openEditMeal(meal)}>
+                        <TouchableOpacity style={[styles.mealActionBtn, { backgroundColor: colors.sectionBg }]} onPress={() => openEntryAction(() => openEditMeal(meal))}>
                           <Feather name="edit-2" size={12} color={colors.tint} />
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.mealActionBtn, { backgroundColor: "#FEE2E2" }]} onPress={() => handleDeleteMeal(meal)}>
@@ -645,7 +689,7 @@ export default function DiaryScreen() {
               <View style={[styles.nutProgressSection, { borderTopColor: colors.border }]}>
                 <View style={styles.nutProgressHeader}>
                   <Text style={[styles.nutProgressTitle, { color: colors.textSecondary }]}>Daily Nutrition</Text>
-                  <TouchableOpacity onPress={() => { setNutCalGoal(String(calorieGoal)); setNutProGoal(String(proteinGoal)); setNutCarbGoal(String(carbsGoal)); setNutFatGoal(String(fatsGoal)); setNutFibGoal(String(fiberGoal)); setShowNutritionGoalModal(true); }}>
+                  <TouchableOpacity onPress={() => openEntryAction(() => { setNutCalGoal(String(calorieGoal)); setNutProGoal(String(proteinGoal)); setNutCarbGoal(String(carbsGoal)); setNutFatGoal(String(fatsGoal)); setNutFibGoal(String(fiberGoal)); setShowNutritionGoalModal(true); })}>
                     <Text style={[styles.nutGoalBtn, { color: colors.tint }]}>Edit Goals</Text>
                   </TouchableOpacity>
                 </View>
@@ -668,7 +712,7 @@ export default function DiaryScreen() {
             )}
             {!hasAnyNutrition && todayMeals.length > 0 && (
               <TouchableOpacity style={[styles.nutGoalHint, { borderTopColor: colors.border }]}
-                onPress={() => { setNutCalGoal(String(calorieGoal)); setNutProGoal(String(proteinGoal)); setNutCarbGoal(String(carbsGoal)); setNutFatGoal(String(fatsGoal)); setNutFibGoal(String(fiberGoal)); setShowNutritionGoalModal(true); }}>
+                onPress={() => openEntryAction(() => { setNutCalGoal(String(calorieGoal)); setNutProGoal(String(proteinGoal)); setNutCarbGoal(String(carbsGoal)); setNutFatGoal(String(fatsGoal)); setNutFibGoal(String(fiberGoal)); setShowNutritionGoalModal(true); })}>
                 <Feather name="bar-chart-2" size={13} color={colors.placeholder} />
                 <Text style={[styles.nutGoalHintText, { color: colors.placeholder }]}>Add nutrition info to meals to track daily goals</Text>
               </TouchableOpacity>
@@ -691,7 +735,7 @@ export default function DiaryScreen() {
                     <Text style={[styles.toggleBtnText, { color: waterUnit === "gal" ? "#fff" : colors.textSecondary }]}>gal</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.addWaterBtn, { backgroundColor: colors.teal }]} onPress={() => setShowWaterModal(true)}>
+                <TouchableOpacity style={[styles.addWaterBtn, { backgroundColor: colors.teal }]} onPress={() => openEntryAction(() => setShowWaterModal(true))}>
                   <Text style={styles.addWaterBtnText}>+ Add</Text>
                 </TouchableOpacity>
               </View>
@@ -699,7 +743,7 @@ export default function DiaryScreen() {
             <View style={[styles.amountCard, { backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
               <Text style={[styles.amountBig, { color: colors.teal }]}>{waterAmountDisplay}</Text>
               <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
-                onPress={() => { setGoalInput(mlToGallons(waterGoalMl)); setGoalUnit("gal"); setShowGoalModal(true); }}>
+                onPress={() => openEntryAction(() => { setGoalInput(mlToGallons(waterGoalMl)); setGoalUnit("gal"); setShowGoalModal(true); })}>
                 <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {goalDisplayStr}</Text>
                 <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
               </TouchableOpacity>
@@ -712,12 +756,12 @@ export default function DiaryScreen() {
           {activeEntry === "sleep" && <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Sleep</Text>
-              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openSleep}>
+              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={() => openEntryAction(openSleep)}>
                 <Feather name="plus" size={16} color={colors.onGold} />
               </TouchableOpacity>
             </View>
             {todaySleep ? (
-              <TouchableOpacity onPress={openSleep}>
+              <TouchableOpacity onPress={() => openEntryAction(openSleep)}>
                 <View style={styles.sleepRow}>
                   <SleepStat label="Bedtime" value={todaySleep.bedtime} colors={colors} />
                   <SleepStat label="Wake" value={todaySleep.wakeTime} colors={colors} />
@@ -726,7 +770,7 @@ export default function DiaryScreen() {
                 <View style={[styles.amountCard, { backgroundColor: colors.surface, marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
                   <Text style={[styles.amountBig, { color: colors.goldText, fontSize: 24 }]}>{sleepHoursToday}h</Text>
                   <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
-                    onPress={(e) => { e.stopPropagation?.(); setSleepGoalInput(String(sleepGoalHours)); setShowSleepGoalModal(true); }}>
+                    onPress={(e) => { e.stopPropagation?.(); openEntryAction(() => { setSleepGoalInput(String(sleepGoalHours)); setShowSleepGoalModal(true); }); }}>
                     <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {sleepGoalHours}h</Text>
                     <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
                   </TouchableOpacity>
@@ -735,7 +779,7 @@ export default function DiaryScreen() {
                 <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>{Math.round(sleepPct)}% of sleep goal</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={openSleep}>
+              <TouchableOpacity onPress={() => openEntryAction(openSleep)}>
                 <View style={styles.emptyState}><Feather name="moon" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>Tap to log your sleep</Text></View>
               </TouchableOpacity>
             )}
@@ -757,17 +801,17 @@ export default function DiaryScreen() {
                     <Text style={[styles.toggleBtnText, { color: weightUnit === "lbs" ? "#fff" : colors.textSecondary }]}>lbs</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.addWaterBtn, { backgroundColor: colors.purple }]} onPress={openWeight}>
+                <TouchableOpacity style={[styles.addWaterBtn, { backgroundColor: colors.purple }]} onPress={() => openEntryAction(openWeight)}>
                   <Text style={styles.addWaterBtnText}>{todayWeight ? "Edit" : "+ Log"}</Text>
                 </TouchableOpacity>
               </View>
             </View>
             {todayWeight ? (
-              <TouchableOpacity onPress={openWeight}>
+              <TouchableOpacity onPress={() => openEntryAction(openWeight)}>
                 <View style={[styles.amountCard, { backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
                   <Text style={[styles.amountBig, { color: colors.purple }]}>{weightDisplayStr}</Text>
                   <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
-                    onPress={(e) => { e.stopPropagation?.(); setWeightGoalInput(weightUnit === "kg" ? String(weightGoalKg) : kgToLbs(weightGoalKg)); setWeightGoalUnit(weightUnit); setShowWeightGoalModal(true); }}>
+                    onPress={(e) => { e.stopPropagation?.(); openEntryAction(() => { setWeightGoalInput(weightUnit === "kg" ? String(weightGoalKg) : kgToLbs(weightGoalKg)); setWeightGoalUnit(weightUnit); setShowWeightGoalModal(true); }); }}>
                     <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {weightGoalDisplay}</Text>
                     <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
                   </TouchableOpacity>
@@ -775,7 +819,7 @@ export default function DiaryScreen() {
                 {todayWeight.notes ? <Text style={[styles.progressLabel, { color: colors.textSecondary, marginTop: 4 }]}>{todayWeight.notes}</Text> : null}
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={openWeight}>
+              <TouchableOpacity onPress={() => openEntryAction(openWeight)}>
                 <View style={styles.emptyState}><Feather name="trending-up" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>Tap to log your weight</Text></View>
               </TouchableOpacity>
             )}
@@ -785,12 +829,12 @@ export default function DiaryScreen() {
           {activeEntry === "exercise" && <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Exercise</Text>
-              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openExercise}>
+              <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={() => openEntryAction(openExercise)}>
                 <Feather name="plus" size={16} color={colors.onGold} />
               </TouchableOpacity>
             </View>
             {todayExercise && totalExerciseMin > 0 ? (
-              <TouchableOpacity onPress={openExercise}>
+              <TouchableOpacity onPress={() => openEntryAction(openExercise)}>
                 <View style={styles.exerciseGrid}>
                   {(todayExercise.running ?? 0) > 0 && <ExerciseTile icon="activity" label="Running" value={todayExercise.running} colors={colors} />}
                   {(todayExercise.walking ?? 0) > 0 && <ExerciseTile icon="navigation" label="Walking" value={todayExercise.walking} colors={colors} />}
@@ -803,7 +847,7 @@ export default function DiaryScreen() {
                 <View style={[styles.amountCard, { backgroundColor: colors.surface, marginTop: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
                   <Text style={[styles.amountBig, { color: colors.goldText, fontSize: 24 }]}>{totalExerciseMin} min</Text>
                   <TouchableOpacity style={[styles.goalChip, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
-                    onPress={(e) => { e.stopPropagation?.(); setExerciseGoalInput(String(exerciseGoalMinutes)); setShowExerciseGoalModal(true); }}>
+                    onPress={(e) => { e.stopPropagation?.(); openEntryAction(() => { setExerciseGoalInput(String(exerciseGoalMinutes)); setShowExerciseGoalModal(true); }); }}>
                     <Text style={[styles.goalChipText, { color: colors.textSecondary }]}>Goal: {exerciseGoalMinutes}min</Text>
                     <Feather name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 2 }} />
                   </TouchableOpacity>
@@ -812,12 +856,71 @@ export default function DiaryScreen() {
                 <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>{Math.round(exercisePct)}% of exercise goal</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={openExercise}>
+              <TouchableOpacity onPress={() => openEntryAction(openExercise)}>
                 <View style={styles.emptyState}><Feather name="trending-up" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>Tap to log exercise</Text></View>
               </TouchableOpacity>
             )}
           </View>}
-        </AutoHideScrollView>
+
+          {/* BOWEL */}
+          {activeEntry === "bowel" && <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Bowel movement color</Text>
+            <View style={styles.bowelOptions}>
+              {([
+                ["green", "Normal", colors.success],
+                ["yellow", "Moderate", colors.warning],
+                ["red", "Severe", colors.destructive],
+              ] as const).map(([value, label, tint]) => (
+                <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ checked: bowelColor === value }}
+                  style={[styles.bowelOption, { backgroundColor: colors.sectionBg, borderColor: bowelColor === value ? tint : colors.border }]}
+                  onPress={() => setBowelColor(value)}>
+                  <View style={[styles.bowelDot, { backgroundColor: tint }]} />
+                  <Text style={[styles.bowelOptionText, { color: colors.text }]}>{label}</Text>
+                  {bowelColor === value && <Feather name="check" size={15} color={tint} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 20 }]}>BM count</Text>
+            <View style={[styles.bowelCountRow, { backgroundColor: colors.sectionBg }]}>
+              <TouchableOpacity accessibilityLabel="Decrease count" onPress={() => setBowelCount((v) => String(Math.max(0, (parseInt(v, 10) || 0) - 1)))} style={styles.bowelCountButton}>
+                <Feather name="minus" size={20} color={colors.text} />
+              </TouchableOpacity>
+              <TextInput accessibilityLabel="Bowel movements today" value={bowelCount} onChangeText={(v) => setBowelCount(v.replace(/[^0-9]/g, ""))}
+                keyboardType="number-pad" maxLength={2} style={[styles.bowelCountInput, { color: colors.text }]} />
+              <TouchableOpacity accessibilityLabel="Increase count" onPress={() => setBowelCount((v) => String(Math.min(99, (parseInt(v, 10) || 0) + 1)))} style={styles.bowelCountButton}>
+                <Feather name="plus" size={20} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.bowelCountCaption, { color: colors.textSecondary }]}>movements today</Text>
+            </View>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 20 }]}>Stool photos</Text>
+            <TouchableOpacity onPress={pickBowelPhotos} style={[styles.bowelPhotoButton, { backgroundColor: colors.sectionBg, borderColor: colors.border }]}>
+              <Feather name="camera" size={18} color={colors.goldText} />
+              <Text style={[styles.bowelOptionText, { color: colors.goldText }]}>Add stool photos</Text>
+            </TouchableOpacity>
+            {bowelPhotos.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+              {bowelPhotos.map((uri, index) => (
+                <View key={`${uri}-${index}`} style={{ marginRight: 10 }}>
+                  <Image source={{ uri }} style={styles.previewImage} />
+                  <TouchableOpacity accessibilityLabel={`Remove photo ${index + 1}`} style={styles.removePhotoBtn} onPress={() => setBowelPhotos((p) => p.filter((_, i) => i !== index))}>
+                    <Feather name="x" size={11} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.sectionBg }]} onPress={() => setActiveEntry(null)}>
+                <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity testID="save-bowel-log" style={[styles.saveBtn, { backgroundColor: colors.teal }]} onPress={handleSaveBowel}>
+                <Text style={styles.saveText}>Save log</Text>
+              </TouchableOpacity>
+            </View>
+          </View>}
+                </ScrollView>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
 
         {/* ADD/EDIT MEAL MODAL */}
         <Modal visible={showMealModal} animationType="slide" transparent>
@@ -1281,7 +1384,21 @@ const styles = StyleSheet.create({
   entryTileIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   entryTileTitle: { fontSize: 14, fontWeight: "600" },
   entryTileValue: { fontSize: 12, marginTop: 3 },
-  card: { borderRadius: 16, paddingHorizontal: 14, paddingTop: 16, paddingBottom: 18, marginTop: 12, borderWidth: 1, shadowOpacity: 0, elevation: 0 },
+  entrySheet: { width: "100%", maxHeight: "88%", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 14 },
+  entrySheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 4 },
+  entrySheetTitle: { fontSize: 19, fontWeight: "700", textTransform: "capitalize" },
+  entryClose: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  entrySheetContent: { paddingHorizontal: 20, paddingBottom: 12 },
+  card: { paddingTop: 8, paddingBottom: 12, shadowOpacity: 0, elevation: 0 },
+  bowelOptions: { gap: 8, marginTop: 6 },
+  bowelOption: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, minHeight: 46 },
+  bowelDot: { width: 14, height: 14, borderRadius: 7 },
+  bowelOptionText: { fontSize: 14, fontWeight: "500", flex: 1 },
+  bowelCountRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 8, gap: 8 },
+  bowelCountButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  bowelCountInput: { width: 38, textAlign: "center", fontSize: 20, fontWeight: "600" },
+  bowelCountCaption: { fontSize: 12, flex: 1 },
+  bowelPhotoButton: { borderWidth: 1, borderStyle: "dashed", borderRadius: 12, minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, gap: 10, marginTop: 6 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   cardTitle: { fontSize: 17, fontWeight: "600" as const },
   addBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
