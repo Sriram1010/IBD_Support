@@ -118,7 +118,7 @@ export default function DiaryScreen() {
   const today = useDateString();
 
   const {
-    meals, waterEntries, sleepLogs, weightLogs, symptomLogs, aiLearningEvents, isLoading,
+    meals, waterEntries, sleepLogs, weightLogs, bowelLogs, symptomLogs, aiLearningEvents, isLoading,
     addMeal, updateMeal, deleteMeal,
     addWaterEntry, deleteWaterEntry, updateWaterEntry,
     addSleepLog, updateSleepLog,
@@ -137,6 +137,7 @@ export default function DiaryScreen() {
   const todaySleep = useMemo(() => sleepLogs.find((s) => s.date === today), [sleepLogs, today]);
   const todayExercise = useMemo(() => getTodayExercise(today), [getTodayExercise, today]);
   const todayWeight = useMemo(() => getWeightEntry(today), [getWeightEntry, today]);
+  const todayBowel = useMemo(() => bowelLogs.find((entry) => entry.date === today), [bowelLogs, today]);
   const todaySymptoms = useMemo(() => symptomLogs.find((s) => s.date === today), [symptomLogs, today]);
   const todayReflections = useMemo(() => aiLearningEvents.filter((e) => e.date === today).length, [aiLearningEvents, today]);
 
@@ -161,6 +162,7 @@ export default function DiaryScreen() {
   const [showWeightSheet, setShowWeightSheet] = useState(false);
   const [showWeightGoalModal, setShowWeightGoalModal] = useState(false);
   const [showNutritionGoalModal, setShowNutritionGoalModal] = useState(false);
+  const [activeEntry, setActiveEntry] = useState<"food" | "water" | "sleep" | "weight" | "exercise" | null>(null);
   const [showImageViewer, setShowImageViewer] = useState<string | null>(null);
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -537,8 +539,45 @@ export default function DiaryScreen() {
 
           <View style={styles.entriesHeading}><Text style={[styles.smallHeading, { color: colors.textSecondary }]}>YOUR DAILY ENTRIES</Text><Text style={[styles.entriesDate, { color: colors.textSecondary }]}>TODAY</Text></View>
 
+          <View style={styles.entryGrid}>
+            {([
+              { key: "food", title: "Food log", icon: "coffee", value: `${todayMeals.length} ${todayMeals.length === 1 ? "meal" : "meals"}`, accent: colors.leaf, soft: colors.leafLight },
+              { key: "water", title: "Water", icon: "droplet", value: waterAmountDisplay, accent: colors.teal, soft: colors.tealLight },
+              { key: "sleep", title: "Sleep", icon: "moon", value: todaySleep ? `${sleepHoursToday} h` : "Not logged", accent: colors.goldText, soft: colors.sectionBg },
+              { key: "weight", title: "Weight", icon: "trending-up", value: todayWeight ? weightDisplayStr : "Not logged", accent: colors.leaf, soft: colors.leafLight },
+              { key: "exercise", title: "Exercise", icon: "activity", value: `${totalExerciseMin} min`, accent: colors.goldText, soft: colors.sectionBg },
+              { key: "bowel", title: "Bowel", icon: "calendar", value: todayBowel ? `${todayBowel.count} today` : "Not logged", accent: colors.teal, soft: colors.tealLight },
+            ] as const).map((entry) => (
+              <TouchableOpacity
+                key={entry.key}
+                testID={`diary-entry-${entry.key}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${entry.title}, ${entry.value}${entry.key === "bowel" ? ", open Calendar" : ", view details"}`}
+                accessibilityState={{ selected: activeEntry === entry.key }}
+                onPress={() => entry.key === "bowel"
+                  ? router.push("/calendar")
+                  : setActiveEntry(activeEntry === entry.key ? null : entry.key)}
+                style={[styles.entryTile, {
+                  backgroundColor: activeEntry === entry.key ? entry.soft : colors.card,
+                  borderColor: activeEntry === entry.key ? entry.accent : colors.border,
+                }]}
+              >
+                <View style={styles.entryTileTop}>
+                  <View style={[styles.entryTileIcon, { backgroundColor: entry.soft }]}>
+                    <Feather name={entry.icon} size={18} color={entry.accent} />
+                  </View>
+                  <Feather name={entry.key === "bowel" ? "arrow-up-right" : activeEntry === entry.key ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+                </View>
+                <View>
+                  <Text style={[styles.entryTileTitle, { color: colors.text }]}>{entry.title}</Text>
+                  <Text style={[styles.entryTileValue, { color: colors.textSecondary }]} numberOfLines={1}>{entry.value}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           {/* FOOD LOG */}
-          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          {activeEntry === "food" && <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Food Log</Text>
               <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.leafLight }]} onPress={openAddMeal}>
@@ -634,10 +673,10 @@ export default function DiaryScreen() {
                 <Text style={[styles.nutGoalHintText, { color: colors.placeholder }]}>Add nutrition info to meals to track daily goals</Text>
               </TouchableOpacity>
             )}
-          </View>
+          </View>}
 
           {/* WATER */}
-          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          {activeEntry === "water" && <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.waterHeaderRow}>
               <View style={styles.waterTitleRow}>
                 <Feather name="droplet" size={16} color={colors.teal} />
@@ -667,10 +706,10 @@ export default function DiaryScreen() {
             </View>
             <GoalProgressBar pct={waterPct} />
             <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>{Math.round(waterPct)}% of daily goal</Text>
-          </View>
+          </View>}
 
           {/* SLEEP */}
-          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          {activeEntry === "sleep" && <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Sleep</Text>
               <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openSleep}>
@@ -700,10 +739,10 @@ export default function DiaryScreen() {
                 <View style={styles.emptyState}><Feather name="moon" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>Tap to log your sleep</Text></View>
               </TouchableOpacity>
             )}
-          </View>
+          </View>}
 
           {/* WEIGHT */}
-          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          {activeEntry === "weight" && <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.waterHeaderRow}>
               <View style={styles.waterTitleRow}>
                 <Feather name="trending-up" size={16} color={colors.purple} />
@@ -740,10 +779,10 @@ export default function DiaryScreen() {
                 <View style={styles.emptyState}><Feather name="trending-up" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>Tap to log your weight</Text></View>
               </TouchableOpacity>
             )}
-          </View>
+          </View>}
 
           {/* EXERCISE */}
-          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          {activeEntry === "exercise" && <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Exercise</Text>
               <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={openExercise}>
@@ -777,7 +816,7 @@ export default function DiaryScreen() {
                 <View style={styles.emptyState}><Feather name="trending-up" size={24} color={colors.placeholder} /><Text style={[styles.emptyText, { color: colors.placeholder }]}>Tap to log exercise</Text></View>
               </TouchableOpacity>
             )}
-          </View>
+          </View>}
         </AutoHideScrollView>
 
         {/* ADD/EDIT MEAL MODAL */}
@@ -1236,7 +1275,13 @@ const styles = StyleSheet.create({
   guideDescription: { fontSize: 11, marginTop: 3, lineHeight: 15 },
   entriesHeading: { flexDirection: "row", justifyContent: "space-between", marginTop: 29, marginBottom: 9 },
   entriesDate: { fontSize: 10, letterSpacing: 1 },
-  card: { borderRadius: 0, paddingHorizontal: 1, paddingTop: 18, paddingBottom: 21, marginBottom: 0, borderBottomWidth: 1, shadowOpacity: 0, elevation: 0 },
+  entryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  entryTile: { width: "48%", minHeight: 112, borderWidth: 1, borderRadius: 15, padding: 12, justifyContent: "space-between" },
+  entryTileTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  entryTileIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  entryTileTitle: { fontSize: 14, fontWeight: "600" },
+  entryTileValue: { fontSize: 12, marginTop: 3 },
+  card: { borderRadius: 16, paddingHorizontal: 14, paddingTop: 16, paddingBottom: 18, marginTop: 12, borderWidth: 1, shadowOpacity: 0, elevation: 0 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   cardTitle: { fontSize: 17, fontWeight: "600" as const },
   addBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
