@@ -2,3 +2,4 @@
 - [Assistant-first navigation](assistant-first-navigation.md) — keep primary tabs focused while retaining all existing health records through More.
 - [GitHub push authentication](github-push-auth.md) — connected GitHub API access does not guarantee Git CLI credentials; preserve commit identity when using the API.
 - [Diary entry interaction](diary-entry-interaction.md) — use bottom sheets for daily tile details, not inline expansion; Diary bowel logs must stay in sync with Calendar.
+- [Expo React catalog alignment](expo-react-catalog.md) — match the workspace React catalog to Expo's SDK pin to avoid duplicate React instances in native modules.
